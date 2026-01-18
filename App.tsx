@@ -1,11 +1,12 @@
 
-import React, { useState } from 'react';
-import { Step, ChatMessage, Language, Product } from './types';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Step, ChatMessage, Language, Product, StyleState, DynamicSuggestion } from './types';
 import { Button } from './components/ui/Button';
-import { CameraView } from './components/CameraView';
+import { Select } from './components/ui/Select';
+import { CameraView, CameraViewRef } from './components/CameraView';
 import { ChatInterface } from './components/ChatInterface';
 import { ProductList } from './components/ProductList';
-import { editAppearance, getStylistResponse, findMatchingProducts } from './services/geminiService';
+import { editAppearance, findMatchingProducts, parseStyleIntent, analyzeLookAndGenerateSuggestions, generateStyledImage, connectStylistLive } from './services/geminiService';
 
 export default function App() {
   const [lang, setLang] = useState<Language>('de');
@@ -13,261 +14,389 @@ export default function App() {
   const [originalPhoto, setOriginalPhoto] = useState<string | null>(null);
   const [currentDisplayPhoto, setCurrentDisplayPhoto] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [dynamicSuggestions, setDynamicSuggestions] = useState<DynamicSuggestion[]>([]);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isSearchingProducts, setIsSearchingProducts] = useState(false);
+  const [isLiveActive, setIsLiveActive] = useState(false);
+  const liveSessionRef = useRef<{ stop: () => Promise<void> } | null>(null);
+  const cameraRef = useRef<CameraViewRef>(null);
   
+  const [styleState, setStyleState] = useState<StyleState>({
+    hair: 'original',
+    outfit: 'original',
+    accessories: 'none',
+    gender: 'female',
+    ageGroup: 'adult',
+    baseStyle: 'modern'
+  });
+
   const t = {
     de: {
-      welcome: "Willkommen beim V-Styler AI. Ich nutze Computer Vision, um den perfekten Schnappschuss zu erstellen. Tritt zurück, bis mein HUD grün leuchtet!",
-      captureSuccess: "KI-Analyse abgeschlossen. Dein Look wurde perfekt erfasst. Welches Outfit darf ich digital für dich schneidern?",
-      error: "Styling-Fehler. Versuche es mit einer präziseren Beschreibung (Farbe, Material, Stil).",
-      reset: "Neu Starten",
-      retake: "Foto wiederholen",
-      stepTitle: "AI Vision",
-      stepSubtitle: "Autonomous Capture",
-      stepDesc: "Unsere KI wartet auf den optimalen Moment: Perfekte Schärfe, Pose und Ganzkörper-Erfassung geschehen vollautomatisch.",
-      previewTitle: "Style Rendering",
-      previewLabel: "Vorschau",
-      generating: "AI Processing",
-      rendering: "Stoffe werden simuliert...",
-      searching: "Suche passende Produkte...",
-      suggestionsLabel: "Trend-Curator",
-      suggestions: [
-        { label: "Business Elite", prompt: "Ein maßgeschneiderter dunkelblauer Anzug mit weißem Hemd" },
-        { label: "Cyberpunk", prompt: "Techwear-Outfit mit leuchtenden violetten Akzenten" },
-        { label: "Summer Breeze", prompt: "Ein leichtes Sommerkleid mit floralem Print" },
-        { label: "Gala Night", prompt: "Ein klassischer schwarzer Smoking" }
-      ]
+      captureSuccess: "Analyse abgeschlossen.",
+      aiInsights: "ESTHETIC PREVIEWS",
+      generating: "Veredelung...",
+      analyzing: "Erfassung...",
+      queuing: "Kuratiere...",
+      startVoice: "Live Stylist",
+      stopVoice: "Beenden",
+      voiceChatActive: "Studio Live",
+      labels: {
+        gender: "IDENTITÄT",
+        age: "TYP",
+        style: "AESTHETIC"
+      },
+      options: {
+        gender: [
+          { label: "Damenmode", value: "female" },
+          { label: "Herrenmode", value: "male" }
+        ],
+        age: [
+          { label: "Contemporary", value: "young" },
+          { label: "Sophisticated", value: "adult" },
+          { label: "Timeless", value: "mature" }
+        ],
+        style: [
+          { label: "Quiet Luxury", value: "modern" },
+          { label: "Vintage Class", value: "vintage" },
+          { label: "Evening Gala", value: "opera" },
+          { label: "Casual Chic", value: "casual" }
+        ]
+      }
     },
     en: {
-      welcome: "Welcome to V-Styler AI. I use computer vision to capture the perfect snapshot. Step back until the HUD turns green!",
-      captureSuccess: "AI analysis complete. Your look was captured perfectly. Which outfit should I digitally tailor for you?",
-      error: "Styling failed. Try a more precise description (color, material, style).",
-      reset: "Restart",
-      retake: "Retake Photo",
-      stepTitle: "AI Vision",
-      stepSubtitle: "Autonomous Capture",
-      stepDesc: "Our AI waits for the optimal moment: Perfect sharpness, pose, and full-body capture happen automatically.",
-      previewTitle: "Style Rendering",
-      previewLabel: "Preview",
-      generating: "AI Processing",
-      rendering: "Simulating fabrics...",
-      searching: "Searching products...",
-      suggestionsLabel: "Trend-Curator",
-      suggestions: [
-        { label: "Business Elite", prompt: "A tailored navy blue suit with a crisp white shirt" },
-        { label: "Cyberpunk", prompt: "Techwear outfit with glowing violet accents" },
-        { label: "Summer Breeze", prompt: "A light summer dress with floral print" },
-        { label: "Gala Night", prompt: "A classic black tuxedo" }
-      ]
+      captureSuccess: "Analysis complete.",
+      aiInsights: "ESTHETIC PREVIEWS",
+      generating: "Refining...",
+      analyzing: "Capturing...",
+      queuing: "Curating...",
+      startVoice: "Live Stylist",
+      stopVoice: "Stop Live",
+      voiceChatActive: "Studio Live",
+      labels: {
+        gender: "IDENTITY",
+        age: "TYPE",
+        style: "AESTHETIC"
+      },
+      options: {
+        gender: [
+          { label: "Womenswear", value: "female" },
+          { label: "Menswear", value: "male" }
+        ],
+        age: [
+          { label: "Contemporary", value: "young" },
+          { label: "Sophisticated", value: "adult" },
+          { label: "Timeless", value: "mature" }
+        ],
+        style: [
+          { label: "Quiet Luxury", value: "modern" },
+          { label: "Vintage Class", value: "vintage" },
+          { label: "Evening Gala", value: "opera" },
+          { label: "Casual Chic", value: "casual" }
+        ]
+      }
     }
   }[lang];
 
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: '1', role: 'assistant', text: t.welcome }
+    { id: '1', role: 'assistant', text: lang === 'de' ? "Willkommen im V-Styler Atelier." : "Welcome to the V-Styler Atelier." }
   ]);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isSearchingProducts, setIsSearchingProducts] = useState(false);
 
-  const toggleLanguage = () => {
-    const newLang = lang === 'de' ? 'en' : 'de';
-    setLang(newLang);
-    if (messages.length === 1) {
-      const texts = {
-        de: "Willkommen beim V-Styler AI. Ich nutze Computer Vision, um den perfekten Schnappschuss zu erstellen. Tritt zurück, bis mein HUD grün leuchtet!",
-        en: "Welcome to V-Styler AI. I use computer vision to capture the perfect snapshot. Step back until the HUD turns green!"
-      };
-      setMessages([{ id: '1', role: 'assistant', text: texts[newLang] }]);
-    }
-  };
+  const toggleLanguage = () => setLang(l => l === 'de' ? 'en' : 'de');
 
-  const handleCapture = (base64: string) => {
-    setOriginalPhoto(base64);
-    setCurrentDisplayPhoto(base64);
-    setMessages(prev => [
-      ...prev,
-      { id: Date.now().toString(), role: 'assistant', text: t.captureSuccess }
-    ]);
-    setCurrentStep(Step.EDITING);
-  };
-
-  const handleSendMessage = async (text: string) => {
-    const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', text };
-    setMessages(prev => [...prev, userMsg]);
+  const processStyleUpdate = async (newStyle: StyleState | string) => {
+    if (!originalPhoto || isProcessing) return;
     setIsProcessing(true);
-    setProducts([]); // Clear old products
 
     try {
-      // 1. Get Stylist Response
-      const stylistResponseText = await getStylistResponse(text, lang);
-      setMessages(prev => [...prev, { id: 'bot-' + Date.now(), role: 'assistant', text: stylistResponseText }]);
-
-      // 2. Generate Image
-      if (originalPhoto) {
-        const editedImg = await editAppearance(originalPhoto, text);
-        setCurrentDisplayPhoto(editedImg);
-        
-        // 3. Start Visual Search
-        setIsSearchingProducts(true);
-        const foundItems = await findMatchingProducts(text, lang);
-        setProducts(foundItems);
+      let finalImg = '';
+      if (typeof newStyle === 'string') {
+        finalImg = await generateStyledImage(originalPhoto, newStyle);
+      } else {
+        setStyleState(newStyle);
+        finalImg = await editAppearance(originalPhoto, newStyle);
       }
+      
+      setCurrentDisplayPhoto(finalImg);
+      
+      setIsSearchingProducts(true);
+      const foundItems = await findMatchingProducts(typeof newStyle === 'string' ? styleState : newStyle, lang);
+      setProducts(foundItems);
     } catch (err) {
       console.error(err);
-      setMessages(prev => [...prev, { id: 'err-' + Date.now(), role: 'assistant', text: t.error }]);
     } finally {
       setIsProcessing(false);
       setIsSearchingProducts(false);
     }
   };
 
-  const reset = () => {
+  const reset = useCallback(() => {
     setOriginalPhoto(null);
     setCurrentDisplayPhoto(null);
     setProducts([]);
-    const initialText = lang === 'de' 
-      ? "Bereit für einen neuen Snapshot. Tritt zurück für die KI-Erfassung!"
-      : "Ready for a new snapshot. Step back for AI capture!";
-    setMessages([
-       { id: '1', role: 'assistant', text: initialText }
-    ]);
+    setDynamicSuggestions([]);
+    setStyleState({ hair: 'original', outfit: 'original', accessories: 'none', gender: 'female', ageGroup: 'adult', baseStyle: 'modern' });
     setCurrentStep(Step.CAMERA);
+  }, []);
+
+  const toggleVoiceChat = useCallback(async (forceOn: boolean = false) => {
+    if (isLiveActive && !forceOn) {
+      await liveSessionRef.current?.stop();
+      liveSessionRef.current = null;
+      setIsLiveActive(false);
+    } else if (!isLiveActive || forceOn) {
+      setIsLiveActive(true);
+      try {
+        const session = await connectStylistLive({
+          onTranscription: (text, role) => {
+            setMessages(prev => {
+              const last = prev[prev.length - 1];
+              if (last && last.role === role) {
+                return [...prev.slice(0, -1), { ...last, text }];
+              }
+              return [...prev, { id: Date.now().toString(), role, text }];
+            });
+          },
+          onApplyStyle: (desc) => {
+            processStyleUpdate(desc);
+          },
+          onTakePhoto: () => {
+            if (cameraRef.current) {
+              cameraRef.current.capture();
+            } else {
+               reset();
+               setTimeout(() => {
+                 if (cameraRef.current) cameraRef.current.capture();
+               }, 1200);
+            }
+          },
+          onReset: () => {
+            reset();
+          },
+          onError: (e) => {
+            console.error(e);
+            setIsLiveActive(false);
+          }
+        }, lang);
+        liveSessionRef.current = session;
+      } catch (err) {
+        console.error(err);
+        setIsLiveActive(false);
+      }
+    }
+  }, [isLiveActive, lang, originalPhoto, reset]);
+
+  useEffect(() => {
+    if (currentStep === Step.CAMERA && !isLiveActive) {
+      toggleVoiceChat(true);
+    }
+  }, [currentStep]);
+
+  const handleCapture = async (base64: string) => {
+    setOriginalPhoto(base64);
+    setCurrentDisplayPhoto(base64);
+    setCurrentStep(Step.EDITING);
+    setIsAnalyzing(true);
+
+    try {
+      const result = await analyzeLookAndGenerateSuggestions(base64, lang);
+      setStyleState(prev => ({ ...prev, gender: result.gender }));
+      setDynamicSuggestions(result.suggestions);
+      setIsAnalyzing(false);
+      
+      for (const s of result.suggestions) {
+         generateStyledImage(base64, s.prompt).then(url => {
+            setDynamicSuggestions(current => current.map(item => item.label === s.label ? { ...item, imageUrl: url, isGenerating: false } : item));
+         });
+      }
+    } catch (err) {
+      console.error(err);
+      setIsAnalyzing(false);
+    }
+  };
+
+  const handleApplySuggestion = (suggestion: DynamicSuggestion) => {
+    if (suggestion.imageUrl) {
+      setCurrentDisplayPhoto(suggestion.imageUrl);
+    } else if (!suggestion.isGenerating) {
+      handleSendMessage(suggestion.prompt);
+    }
+  };
+
+  const handleSendMessage = async (text: string) => {
+    if (!originalPhoto || isProcessing) return;
+    setIsProcessing(true);
+    const updatedStyle = await parseStyleIntent(text, styleState, lang);
+    setIsProcessing(false);
+    processStyleUpdate(updatedStyle);
+  };
+
+  const handleFullReset = () => {
+    if (liveSessionRef.current) liveSessionRef.current.stop();
+    setIsLiveActive(false);
+    reset();
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col font-sans selection:bg-indigo-500 selection:text-white overflow-x-hidden">
-      <div className="fixed inset-0 bg-[radial-gradient(circle_at_20%_20%,_#1e1b4b_0%,_transparent_40%),radial-gradient(circle_at_80%_80%,_#312e81_0%,_transparent_40%)] -z-10"></div>
+    <div className="min-h-screen bg-slate-950 text-white flex flex-col font-sans overflow-x-hidden selection:bg-indigo-500/30">
+      <div className="fixed inset-0 bg-[radial-gradient(circle_at_20%_20%,_#1e1b4b_0%,_transparent_40%),radial-gradient(circle_at_80%_80%,_#312e81_0%,_transparent_40%)] -z-10 animate-pulse duration-[10s]"></div>
 
-      <header className="px-6 md:px-8 h-20 flex items-center justify-between border-b border-white/5 backdrop-blur-2xl sticky top-0 z-50">
-        <div className="flex items-center gap-3 cursor-pointer group" onClick={reset}>
-          <div className="bg-indigo-600 w-10 h-10 md:w-11 md:h-11 rounded-2xl flex items-center justify-center shadow-[0_0_20px_rgba(79,70,229,0.4)] group-hover:scale-110 transition-transform">
-            <svg className="w-5 h-5 md:w-6 md:h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
+      <header className="px-6 md:px-8 h-16 py-2 flex items-center justify-between border-b border-white/5 backdrop-blur-3xl sticky top-0 z-[100]">
+        <div className="flex items-center gap-2 cursor-pointer group" onClick={handleFullReset}>
+          <div className="bg-gradient-to-br from-indigo-500 to-purple-600 w-8 h-8 rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(79,70,229,0.3)] group-hover:scale-105 transition-all">
+             <span className="font-black text-sm">V</span>
           </div>
-          <div className="flex flex-col leading-tight hidden sm:flex">
-            <span className="text-base md:text-lg font-black tracking-widest uppercase text-white">V-STYLERS</span>
-            <span className="text-[10px] font-bold text-indigo-400 tracking-[0.3em] uppercase underline decoration-indigo-500/50 underline-offset-4">Advanced Vision Core</span>
+          <div className="hidden sm:flex flex-col leading-none">
+            <span className="text-sm font-black tracking-widest uppercase">V-STYLER</span>
           </div>
         </div>
         
-        <div className="flex items-center gap-3 md:gap-4">
-          <button 
-            onClick={toggleLanguage}
-            className="text-[10px] md:text-[11px] font-black tracking-[0.2em] bg-white/5 hover:bg-white/10 px-3 py-2 rounded-xl border border-white/10 uppercase transition-all"
-          >
-            {lang === 'de' ? 'DE | en' : 'de | EN'}
+        {currentStep === Step.EDITING && (
+          <div className="flex-1 max-w-lg mx-6 hidden lg:flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-500">
+            <div className="flex-1 grid grid-cols-3 gap-2">
+              <Select label={t.labels.gender} options={t.options.gender} value={styleState.gender} onChange={(v) => processStyleUpdate({ ...styleState, gender: v as any })} />
+              <Select label={t.labels.age} options={t.options.age} value={styleState.ageGroup} onChange={(v) => processStyleUpdate({ ...styleState, ageGroup: v as any })} />
+              <Select label={t.labels.style} options={t.options.style} value={styleState.baseStyle} onChange={(v) => processStyleUpdate({ ...styleState, baseStyle: v as any })} />
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center gap-2">
+          <button onClick={toggleLanguage} className="text-[8px] font-black bg-white/5 px-2 py-1.5 rounded-md border border-white/10 hover:bg-white/10 transition-colors uppercase">
+            {lang === 'de' ? 'GER' : 'ENG'}
           </button>
+          <Button 
+            variant={isLiveActive ? 'primary' : 'outline'} 
+            size="sm" 
+            onClick={() => toggleVoiceChat()} 
+            className={`text-[8px] font-black h-8 border-white/10 uppercase px-3 transition-all ${isLiveActive ? 'bg-red-600 border-red-500 animate-pulse' : ''}`}
+          >
+            {isLiveActive ? t.stopVoice : t.startVoice}
+          </Button>
           {currentStep === Step.EDITING && (
-            <Button variant="ghost" size="sm" onClick={reset} className="text-[10px] md:text-xs text-white/60 hover:text-white hover:bg-white/5 border border-white/10 rounded-xl px-3 h-9 md:h-10">
-              {t.retake}
+            <Button variant="outline" size="sm" onClick={handleFullReset} className="text-[8px] font-black h-8 border-white/10 hover:bg-white/5 uppercase px-3">
+              {lang === 'de' ? 'NEU' : 'NEW'}
             </Button>
           )}
         </div>
       </header>
 
-      <main className="flex-1 max-w-[1600px] mx-auto w-full px-4 md:px-6 py-6 md:py-8 flex flex-col lg:flex-row gap-6 lg:gap-10 items-center lg:items-stretch overflow-hidden">
+      <main className="flex-1 max-w-[1500px] mx-auto w-full p-2 md:p-4 flex flex-col items-center">
         {currentStep === Step.CAMERA ? (
-          <div className="flex-1 flex flex-col items-center justify-center max-w-3xl mx-auto w-full animate-in fade-in zoom-in duration-1000">
-            <div className="mb-6 md:mb-10 text-center">
-              <h2 className="text-3xl md:text-5xl font-black mb-3 md:mb-4 bg-clip-text text-transparent bg-gradient-to-b from-white to-white/40 leading-tight uppercase px-4 italic">
-                {t.stepTitle} <br/><span className="text-indigo-500 not-italic">{t.stepSubtitle}</span>
-              </h2>
-              <p className="text-slate-400 text-base md:text-lg max-w-lg mx-auto px-6 font-light">
-                {t.stepDesc}
-              </p>
+          <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+            <div className="lg:col-span-8 animate-in fade-in duration-700">
+              <CameraView ref={cameraRef} onCapture={handleCapture} lang={lang} voiceActive={isLiveActive} />
             </div>
-            <div className="w-full max-w-[500px] lg:max-w-none">
-              <CameraView onCapture={handleCapture} lang={lang} />
+            
+            <div className="lg:col-span-4 lg:sticky lg:top-20 h-[450px] animate-in fade-in duration-700 delay-100">
+               <ChatInterface 
+                  messages={messages} 
+                  onSendMessage={handleSendMessage} 
+                  isProcessing={false} 
+                  lang={lang} 
+                  voiceActive={isLiveActive}
+               />
             </div>
           </div>
         ) : (
-          <div className="w-full flex flex-col lg:flex-row gap-6 lg:gap-8 h-full min-h-0 animate-in slide-in-from-right-12 duration-700">
-            <div className="flex-[3] flex flex-col gap-6 relative min-h-[60vh] lg:min-h-0">
-              <div className="flex-1 relative rounded-[2.5rem] md:rounded-[4rem] overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.5)] border-2 border-white/5 bg-slate-900 group">
-                {currentDisplayPhoto && (
-                  <img 
-                    src={currentDisplayPhoto} 
-                    alt="Style Preview" 
-                    className={`w-full h-full object-cover transition-all duration-1000 ${isProcessing ? 'scale-105 blur-2xl opacity-20' : 'scale-100 opacity-100'}`}
-                  />
-                )}
-                
-                <div className="absolute inset-x-0 bottom-0 p-8 md:p-12 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none">
-                  <div className="flex items-center justify-between">
-                    <div className="flex flex-col gap-1">
-                      <span className="text-[10px] font-bold text-indigo-400 tracking-[0.3em] uppercase mb-1">{t.previewTitle}</span>
-                      <h3 className="text-white font-black text-xl md:text-2xl uppercase tracking-tighter">{t.previewLabel}</h3>
+          <div className="w-full flex flex-col gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+              <div className="lg:col-span-7 flex flex-col">
+                <div className="relative rounded-[2rem] overflow-hidden shadow-xl border border-white/10 bg-slate-900 group min-h-[400px] max-h-[60vh]">
+                  {currentDisplayPhoto && (
+                    <img src={currentDisplayPhoto} alt="AI" className={`w-full h-full object-cover transition-all duration-700 ${isProcessing ? 'scale-105 blur-lg opacity-50' : 'scale-100 opacity-100'}`} />
+                  )}
+                  
+                  <div className="absolute top-4 left-4 flex flex-col gap-2">
+                    <div className="bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 flex flex-col animate-in fade-in duration-500">
+                       <span className="text-[6px] font-black text-indigo-400 uppercase">Status</span>
+                       <span className="text-[9px] font-bold text-white uppercase flex items-center gap-2">
+                          <div className={`w-1 h-1 rounded-full ${isLiveActive ? 'bg-red-500 shadow-[0_0_3px_red]' : 'bg-green-500 shadow-[0_0_3px_green]'} animate-pulse`}></div>
+                          {isLiveActive ? t.voiceChatActive : 'Ready'}
+                       </span>
                     </div>
                   </div>
-                </div>
 
-                {isProcessing && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-8 z-20">
-                    <div className="relative">
-                      <div className="w-24 h-24 md:w-32 md:h-32 border-b-4 border-indigo-500 rounded-full animate-spin"></div>
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="w-16 h-16 md:w-20 md:h-20 border-t-4 border-white rounded-full animate-spin [animation-duration:1.2s]"></div>
+                  {isProcessing && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center z-50 bg-black/40 backdrop-blur-sm">
+                      <div className="w-12 h-12 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                      <div className="mt-4 text-center">
+                        <span className="text-sm font-black text-white uppercase tracking-widest">{t.generating}</span>
                       </div>
                     </div>
-                    <div className="flex flex-col items-center text-center px-6">
-                      <span className="text-xl md:text-2xl font-black text-white tracking-[0.2em] uppercase mb-2">{t.generating}</span>
-                      <span className="text-xs md:text-sm text-indigo-300 font-bold animate-pulse tracking-widest">{t.rendering}</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Product Discovery Results */}
-              {!isProcessing && (
-                <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 delay-300">
-                  {isSearchingProducts ? (
-                    <div className="flex items-center gap-4 p-6 bg-white/5 rounded-[2rem] border border-white/5">
-                      <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-                      <span className="text-xs font-bold text-slate-400 tracking-widest uppercase animate-pulse">{t.searching}</span>
-                    </div>
-                  ) : (
-                    <ProductList products={products} lang={lang} />
                   )}
                 </div>
-              )}
-            </div>
-
-            <div className="flex-[2] flex flex-col min-w-full md:min-w-[400px] lg:min-w-[400px] gap-6 h-[50vh] lg:h-auto">
-              <div className="flex-1 min-h-0">
-                <ChatInterface 
-                  messages={messages} 
-                  onSendMessage={handleSendMessage} 
-                  isProcessing={isProcessing}
-                  lang={lang}
-                />
               </div>
 
-              <div className="bg-slate-900/50 backdrop-blur-3xl p-6 md:p-8 rounded-[3rem] border border-white/5 flex flex-col gap-5 shadow-2xl">
-                 <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-black text-slate-500 tracking-[0.2em] uppercase">{t.suggestionsLabel}</span>
-                    <div className="flex gap-1.5">
-                       <div className="w-1 h-1 rounded-full bg-indigo-500"></div>
-                       <div className="w-1 h-1 rounded-full bg-indigo-500/40"></div>
-                    </div>
-                 </div>
-                 <div className="grid grid-cols-2 gap-3 md:gap-4">
-                    {t.suggestions.map(s => (
+              <div className="lg:col-span-5 flex flex-col gap-4 lg:sticky lg:top-20 lg:max-h-[calc(100vh-100px)] overflow-y-auto no-scrollbar pb-4">
+                <div className="h-[350px] shrink-0">
+                  <ChatInterface 
+                    messages={messages} 
+                    onSendMessage={handleSendMessage} 
+                    isProcessing={isProcessing || isAnalyzing} 
+                    lang={lang} 
+                    voiceActive={isLiveActive}
+                  />
+                </div>
+                <ProductList products={products} lang={lang} />
+              </div>
+            </div>
+
+            <section className="w-full bg-white/5 backdrop-blur-xl rounded-[2rem] border border-white/10 py-4 px-6 animate-in slide-in-from-bottom-2 duration-500 shadow-lg">
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-between px-1">
+                  <h3 className="text-[8px] font-black text-indigo-400 uppercase tracking-[0.2em]">{t.aiInsights}</h3>
+                  <div className="h-[1px] flex-1 bg-white/5 ml-4"></div>
+                </div>
+
+                <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+                  {dynamicSuggestions.length > 0 ? (
+                    dynamicSuggestions.map((s, idx) => (
                       <button 
-                        key={s.label}
-                        onClick={() => handleSendMessage(s.prompt)}
-                        disabled={isProcessing}
-                        className="text-[10px] md:text-[11px] font-black py-3 md:py-4 px-4 bg-white/5 hover:bg-indigo-600 border border-white/5 rounded-2xl transition-all text-left group disabled:opacity-50 hover:shadow-[0_0_20px_rgba(79,70,229,0.3)]"
+                        key={idx}
+                        onClick={() => handleApplySuggestion(s)}
+                        disabled={isProcessing || isAnalyzing}
+                        className={`group relative flex-none w-48 flex flex-col p-3 bg-slate-900/60 hover:bg-indigo-600/10 border border-white/5 hover:border-indigo-500/20 rounded-[1.5rem] transition-all text-left disabled:opacity-50 overflow-hidden ${s.imageUrl ? 'ring-1 ring-indigo-500/20' : ''}`}
                       >
-                        <span className="block text-slate-500 group-hover:text-white/60 mb-1 truncate uppercase tracking-tighter">{s.label}</span>
-                        <span className="block text-white group-hover:text-indigo-100 truncate">{lang === 'de' ? 'Anwenden' : 'Apply'} →</span>
+                        <div className="w-full aspect-square bg-slate-800 rounded-[1.2rem] overflow-hidden mb-3 relative">
+                          {s.imageUrl ? (
+                            <img src={s.imageUrl} alt={s.label} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <div className="w-6 h-6 border border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
+                            </div>
+                          )}
+                        </div>
+                        <div className="px-0.5">
+                          <div className="flex justify-between items-center mb-0.5">
+                            <span className="text-[10px] font-black text-white uppercase truncate mr-1">{s.label}</span>
+                            <span className="text-[6px] font-bold text-indigo-300 uppercase bg-indigo-500/10 px-1.5 py-0.5 rounded-full">{s.category}</span>
+                          </div>
+                          <p className="text-[8px] text-slate-400 line-clamp-1 group-hover:text-slate-200 leading-tight">
+                            {s.imageUrl ? s.prompt : t.queuing}
+                          </p>
+                        </div>
                       </button>
-                    ))}
-                 </div>
+                    ))
+                  ) : isAnalyzing ? (
+                    <div className="flex gap-3 w-full">
+                       {[1,2,3,4].map(i => (
+                         <div key={i} className="flex-none w-48 aspect-square bg-white/5 rounded-[1.5rem] animate-pulse flex items-center justify-center">
+                            <div className="w-6 h-6 border border-slate-700 border-t-indigo-500 rounded-full animate-spin"></div>
+                         </div>
+                       ))}
+                    </div>
+                  ) : null}
+                </div>
               </div>
-            </div>
+            </section>
           </div>
         )}
       </main>
+
+      <div className="fixed bottom-0 right-0 p-4 opacity-5 pointer-events-none -z-10">
+         <span className="text-[8vw] font-black leading-none uppercase italic tracking-tighter">AI VISION</span>
+      </div>
     </div>
   );
 }
