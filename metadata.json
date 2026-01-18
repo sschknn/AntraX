@@ -1,0 +1,7 @@
+{
+  "name": "V-Styler AI: Virtual Try-On",
+  "description": "A cutting-edge virtual try-on application that uses Gemini AI for pose detection, cloth segmentation, and realistic garment swapping.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
