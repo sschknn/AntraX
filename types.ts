@@ -47,6 +47,7 @@ export interface StylingResult {
 export interface LiveSessionConfig {
   onTranscription: (text: string, role: 'user' | 'assistant') => void;
   onApplyStyle: (description: string) => void;
+  onTakePhoto: () => void;
   onReset?: () => void;
   onError: (error: any) => void;
 }

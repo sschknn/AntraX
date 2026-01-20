@@ -268,7 +268,7 @@ async function decodeAudioData(data: Uint8Array, ctx: AudioContext, sampleRate: 
   return buffer;
 }
 
-export const connectStylistLive = async (config: LiveSessionConfig & { onTakePhoto: () => void }, lang: Language) => {
+export const connectStylistLive = async (config: LiveSessionConfig, lang: Language) => {
   const ai = getAIClient();
   let nextStartTime = 0;
   const inputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({sampleRate: 16000});
