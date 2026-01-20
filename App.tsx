@@ -19,6 +19,7 @@ export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSearchingProducts, setIsSearchingProducts] = useState(false);
   const [isLiveActive, setIsLiveActive] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const liveSessionRef = useRef<{ stop: () => Promise<void> } | null>(null);
   const cameraRef = useRef<CameraViewRef>(null);
   
@@ -41,6 +42,9 @@ export default function App() {
       startVoice: "Live Stylist",
       stopVoice: "Beenden",
       voiceChatActive: "Studio Live",
+      apiKeyRequired: "API Key erforderlich",
+      quotaError: "Limit erreicht. Bitte eigenen Key wählen.",
+      manageKey: "Key verwalten",
       labels: {
         gender: "IDENTITÄT",
         age: "TYP",
@@ -73,6 +77,9 @@ export default function App() {
       startVoice: "Live Stylist",
       stopVoice: "Stop Live",
       voiceChatActive: "Studio Live",
+      apiKeyRequired: "API Key Required",
+      quotaError: "Quota exceeded. Please select your own key.",
+      manageKey: "Manage Key",
       labels: {
         gender: "IDENTITY",
         age: "TYPE",
@@ -104,9 +111,21 @@ export default function App() {
 
   const toggleLanguage = () => setLang(l => l === 'de' ? 'en' : 'de');
 
+  const handleApiKeyManagement = async () => {
+    try {
+      if (window.aistudio) {
+        await window.aistudio.openSelectKey();
+        setError(null);
+      }
+    } catch (err) {
+      console.error("Failed to open key selector", err);
+    }
+  };
+
   const processStyleUpdate = async (newStyle: StyleState | string) => {
     if (!originalPhoto || isProcessing) return;
     setIsProcessing(true);
+    setError(null);
 
     try {
       let finalImg = '';
@@ -122,8 +141,13 @@ export default function App() {
       setIsSearchingProducts(true);
       const foundItems = await findMatchingProducts(typeof newStyle === 'string' ? styleState : newStyle, lang);
       setProducts(foundItems);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      if (err.message?.includes('429') || err.message?.includes('Quota')) {
+        setError(t.quotaError);
+      } else {
+        setError(err.message || "An error occurred");
+      }
     } finally {
       setIsProcessing(false);
       setIsSearchingProducts(false);
@@ -137,6 +161,7 @@ export default function App() {
     setDynamicSuggestions([]);
     setStyleState({ hair: 'original', outfit: 'original', accessories: 'none', gender: 'female', ageGroup: 'adult', baseStyle: 'modern' });
     setCurrentStep(Step.CAMERA);
+    setError(null);
   }, []);
 
   const toggleVoiceChat = useCallback(async (forceOn: boolean = false) => {
@@ -145,6 +170,15 @@ export default function App() {
       liveSessionRef.current = null;
       setIsLiveActive(false);
     } else if (!isLiveActive || forceOn) {
+      setError(null);
+      
+      // For Live Session, we strongly recommend a selected key to avoid 429s
+      const hasKey = window.aistudio ? await window.aistudio.hasSelectedApiKey() : true;
+      if (!hasKey) {
+        handleApiKeyManagement();
+        // Fall through; guidelines say assume success or proceed
+      }
+
       setIsLiveActive(true);
       try {
         const session = await connectStylistLive({
@@ -173,18 +207,22 @@ export default function App() {
           onReset: () => {
             reset();
           },
-          onError: (e) => {
-            console.error(e);
+          onError: (e: any) => {
+            console.error("Live Error", e);
+            if (e.message?.includes('429') || e.message?.includes('entity was not found')) {
+              setError(t.quotaError);
+            }
             setIsLiveActive(false);
           }
         }, lang);
         liveSessionRef.current = session;
-      } catch (err) {
+      } catch (err: any) {
         console.error(err);
+        if (err.message?.includes('429')) setError(t.quotaError);
         setIsLiveActive(false);
       }
     }
-  }, [isLiveActive, lang, originalPhoto, reset]);
+  }, [isLiveActive, lang, originalPhoto, reset, t.quotaError]);
 
   useEffect(() => {
     if (currentStep === Step.CAMERA && !isLiveActive) {
@@ -197,6 +235,7 @@ export default function App() {
     setCurrentDisplayPhoto(base64);
     setCurrentStep(Step.EDITING);
     setIsAnalyzing(true);
+    setError(null);
 
     try {
       const result = await analyzeLookAndGenerateSuggestions(base64, lang);
@@ -207,10 +246,11 @@ export default function App() {
       for (const s of result.suggestions) {
          generateStyledImage(base64, s.prompt).then(url => {
             setDynamicSuggestions(current => current.map(item => item.label === s.label ? { ...item, imageUrl: url, isGenerating: false } : item));
-         });
+         }).catch(err => console.error("Preview generation failed", err));
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      if (err.message?.includes('429')) setError(t.quotaError);
       setIsAnalyzing(false);
     }
   };
@@ -226,9 +266,14 @@ export default function App() {
   const handleSendMessage = async (text: string) => {
     if (!originalPhoto || isProcessing) return;
     setIsProcessing(true);
-    const updatedStyle = await parseStyleIntent(text, styleState, lang);
-    setIsProcessing(false);
-    processStyleUpdate(updatedStyle);
+    try {
+      const updatedStyle = await parseStyleIntent(text, styleState, lang);
+      setIsProcessing(false);
+      processStyleUpdate(updatedStyle);
+    } catch (err: any) {
+      if (err.message?.includes('429')) setError(t.quotaError);
+      setIsProcessing(false);
+    }
   };
 
   const handleFullReset = () => {
@@ -262,6 +307,14 @@ export default function App() {
         )}
 
         <div className="flex items-center gap-2">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={handleApiKeyManagement}
+            className="text-[8px] font-black border-white/5 uppercase px-2 h-8"
+          >
+            {t.manageKey}
+          </Button>
           <button onClick={toggleLanguage} className="text-[8px] font-black bg-white/5 px-2 py-1.5 rounded-md border border-white/10 hover:bg-white/10 transition-colors uppercase">
             {lang === 'de' ? 'GER' : 'ENG'}
           </button>
@@ -280,6 +333,15 @@ export default function App() {
           )}
         </div>
       </header>
+
+      {error && (
+        <div className="w-full bg-red-600/20 backdrop-blur-md border-b border-red-500/30 py-2 px-6 flex items-center justify-between">
+           <span className="text-[10px] font-bold text-red-400 uppercase tracking-widest">{error}</span>
+           <Button variant="outline" size="sm" onClick={handleApiKeyManagement} className="h-6 text-[8px] bg-red-600/40 border-red-500">
+              {t.manageKey}
+           </Button>
+        </div>
+      )}
 
       <main className="flex-1 max-w-[1500px] mx-auto w-full p-2 md:p-4 flex flex-col items-center">
         {currentStep === Step.CAMERA ? (

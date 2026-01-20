@@ -2,13 +2,11 @@
 import { GoogleGenAI, Type, Modality, LiveServerMessage, FunctionDeclaration } from "@google/genai";
 import { Language, Product, StyleState, DynamicSuggestion, LiveSessionConfig } from "../types";
 
-const getAIClient = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 export const analyzeLookAndGenerateSuggestions = async (
   imageBase64: string,
   lang: Language
 ): Promise<{ gender: 'male' | 'female', suggestions: DynamicSuggestion[] }> => {
-  const ai = getAIClient();
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
   const languageName = lang === 'de' ? 'German' : 'English';
 
@@ -64,7 +62,7 @@ export const analyzeLookAndGenerateSuggestions = async (
 };
 
 export const generateStyledImage = async (originalImageBase64: string, prompt: string): Promise<string> => {
-  const ai = getAIClient();
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const base64Data = originalImageBase64.includes(',') ? originalImageBase64.split(',')[1] : originalImageBase64;
 
   const response = await ai.models.generateContent({
@@ -88,7 +86,7 @@ export const generateStyledImage = async (originalImageBase64: string, prompt: s
 };
 
 export const parseStyleIntent = async (userInput: string, currentState: StyleState, lang: Language): Promise<StyleState> => {
-  const ai = getAIClient();
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: `User wants a style change: "${userInput}". 
@@ -114,7 +112,7 @@ export const parseStyleIntent = async (userInput: string, currentState: StyleSta
 };
 
 export const editAppearance = async (originalImageBase64: string, style: StyleState): Promise<string> => {
-  const ai = getAIClient();
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const base64Data = originalImageBase64.includes(',') ? originalImageBase64.split(',')[1] : originalImageBase64;
   const response = await ai.models.generateContent({
     model: 'gemini-2.5-flash-image',
@@ -133,13 +131,11 @@ export const editAppearance = async (originalImageBase64: string, style: StyleSt
 };
 
 export const findMatchingProducts = async (style: StyleState, lang: Language): Promise<Product[]> => {
-  // Simulierte Verzögerung für API-Feeling
   await new Promise(resolve => setTimeout(resolve, 800));
   
   const genderTerm = style.gender === 'male' ? 'Herren' : 'Damen';
   const amazonBase = `https://www.amazon.de/s?k=`;
 
-  // Dynamische Generierung von Produkten basierend auf dem Stil
   if (style.baseStyle === 'modern' || style.baseStyle === 'casual') {
     return [
       { 
@@ -269,7 +265,7 @@ async function decodeAudioData(data: Uint8Array, ctx: AudioContext, sampleRate: 
 }
 
 export const connectStylistLive = async (config: LiveSessionConfig & { onTakePhoto: () => void }, lang: Language) => {
-  const ai = getAIClient();
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   let nextStartTime = 0;
   const inputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({sampleRate: 16000});
   const outputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({sampleRate: 24000});
