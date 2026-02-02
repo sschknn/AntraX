@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './src/App';
-import './src/index.css';
+import App from './App';
+import './index.css';
 
 // Verbesserte Error Boundary
 class ErrorBoundary extends React.Component {
@@ -62,10 +62,12 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-// App rendern
+// App rendern mit StrictMode
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
-  React.createElement(ErrorBoundary, null,
-    React.createElement(App)
+  React.createElement(React.StrictMode, null,
+    React.createElement(ErrorBoundary, null,
+      React.createElement(App)
+    )
   )
 );
