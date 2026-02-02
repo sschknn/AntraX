@@ -10,14 +10,32 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
     
-    <!-- Tailwind CDN as fallback -->
+    <!-- Critical CSS inline -->
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100%; font-family: 'Inter', system-ui, sans-serif; }
+        body { background-color: #020617; color: #e2e8f0; }
+        #root { min-height: 100vh; }
+        .loading { min-height: 100vh; background-color: #020617; display: flex; align-items: center; justify-content: center; }
+        .loading-content { text-align: center; }
+        .spinner { border: 3px solid rgba(255, 255, 255, 0.1); border-top: 3px solid #6366f1; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; margin: 0 auto 16px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .loading-text { color: #94a3b8; font-size: 14px; }
+    </style>
+    
+    <!-- Tailwind CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
             theme: {
                 extend: {
-                    fontFamily: {
-                        'sans': ['Inter', 'system-ui', 'sans-serif'],
+                    fontFamily: { 'sans': ['Inter', 'system-ui', 'sans-serif'] },
+                    colors: {
+                        slate: {
+                            50: '#f8fafc', 100: '#f1f5f9', 200: '#e2e8f0', 300: '#cbd5e1',
+                            400: '#94a3b8', 500: '#64748b', 600: '#475569', 700: '#334155',
+                            800: '#1e293b', 900: '#0f172a', 950: '#020617'
+                        }
                     }
                 }
             }
@@ -26,13 +44,12 @@
     
     <script type="module" src="/index.tsx"></script>
 </head>
-<body class="bg-[#020617] text-slate-200 font-sans">
+<body>
     <div id="root">
-        <!-- Loading Screen -->
-        <div class="min-h-screen bg-[#020617] flex items-center justify-center">
-            <div class="text-center">
-                <div class="w-6 h-6 border-2 border-slate-600 border-t-indigo-500 rounded-full animate-spin mx-auto mb-4"></div>
-                <p class="text-slate-400 text-sm">Loading AntraX-AI...</p>
+        <div class="loading">
+            <div class="loading-content">
+                <div class="spinner"></div>
+                <p class="loading-text">Loading AntraX-AI...</p>
             </div>
         </div>
     </div>
