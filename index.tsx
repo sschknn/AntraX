@@ -21,8 +21,8 @@ class ErrorBoundary extends React.Component {
 
   render() {
     if (this.state.hasError) {
-      return (
-        <div style={{
+      return React.createElement('div', {
+        style: {
           minHeight: '100vh',
           backgroundColor: '#020617',
           color: '#e2e8f0',
@@ -30,27 +30,32 @@ class ErrorBoundary extends React.Component {
           alignItems: 'center',
           justifyContent: 'center',
           fontFamily: 'Inter, system-ui, sans-serif'
-        }}>
-          <div style={{ textAlign: 'center' }}>
-            <h1 style={{ fontSize: '24px', marginBottom: '16px' }}>AntraX-AI</h1>
-            <p style={{ color: '#94a3b8' }}>Loading application...</p>
-            <button 
-              onClick={() => window.location.reload()} 
-              style={{
-                marginTop: '16px',
-                padding: '8px 16px',
-                backgroundColor: '#6366f1',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: 'pointer'
-              }}
-            >
-              Retry
-            </button>
-          </div>
-        </div>
-      );
+        }
+      }, React.createElement('div', {
+        style: { textAlign: 'center' }
+      }, [
+        React.createElement('h1', { 
+          key: 'title',
+          style: { fontSize: '24px', marginBottom: '16px' } 
+        }, 'AntraX-AI'),
+        React.createElement('p', { 
+          key: 'desc',
+          style: { color: '#94a3b8' } 
+        }, 'Loading application...'),
+        React.createElement('button', {
+          key: 'retry',
+          onClick: () => window.location.reload(),
+          style: {
+            marginTop: '16px',
+            padding: '8px 16px',
+            backgroundColor: '#6366f1',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer'
+          }
+        }, 'Retry')
+      ]));
     }
 
     return this.props.children;
