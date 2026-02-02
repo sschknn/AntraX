@@ -13,43 +13,115 @@
     <!-- Critical CSS inline -->
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        html, body { height: 100%; font-family: 'Inter', system-ui, sans-serif; }
-        body { background-color: #020617; color: #e2e8f0; }
-        #root { min-height: 100vh; }
-        .loading { min-height: 100vh; background-color: #020617; display: flex; align-items: center; justify-content: center; }
-        .loading-content { text-align: center; }
-        .spinner { border: 3px solid rgba(255, 255, 255, 0.1); border-top: 3px solid #6366f1; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; margin: 0 auto 16px; }
+        html, body { height: 100%; font-family: 'Inter', system-ui, sans-serif; background-color: #020617; color: #e2e8f0; }
+        #root { min-height: 100vh; background-color: #020617; }
+        
+        /* Utility classes */
+        .min-h-screen { min-height: 100vh; }
+        .bg-slate-950 { background-color: #020617; }
+        .text-slate-200 { color: #e2e8f0; }
+        .text-slate-400 { color: #94a3b8; }
+        .text-white { color: #ffffff; }
+        .text-indigo-400 { color: #818cf8; }
+        .text-indigo-500 { color: #6366f1; }
+        .bg-indigo-500 { background-color: #6366f1; }
+        .bg-indigo-600 { background-color: #4f46e5; }
+        .bg-white\/5 { background-color: rgba(255, 255, 255, 0.05); }
+        .bg-white\/10 { background-color: rgba(255, 255, 255, 0.1); }
+        .border-white\/5 { border-color: rgba(255, 255, 255, 0.05); }
+        .border-white\/10 { border-color: rgba(255, 255, 255, 0.1); }
+        
+        .flex { display: flex; }
+        .items-center { align-items: center; }
+        .justify-center { justify-content: center; }
+        .justify-between { justify-content: space-between; }
+        .text-center { text-align: center; }
+        .font-black { font-weight: 900; }
+        .font-bold { font-weight: 700; }
+        .uppercase { text-transform: uppercase; }
+        .rounded-full { border-radius: 9999px; }
+        .rounded-xl { border-radius: 0.75rem; }
+        .rounded-2xl { border-radius: 1rem; }
+        .rounded-3xl { border-radius: 1.5rem; }
+        .p-2 { padding: 0.5rem; }
+        .p-3 { padding: 0.75rem; }
+        .p-4 { padding: 1rem; }
+        .p-6 { padding: 1.5rem; }
+        .px-4 { padding-left: 1rem; padding-right: 1rem; }
+        .px-8 { padding-left: 2rem; padding-right: 2rem; }
+        .py-3 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+        .mb-4 { margin-bottom: 1rem; }
+        .gap-4 { gap: 1rem; }
+        .gap-6 { gap: 1.5rem; }
+        .gap-8 { gap: 2rem; }
+        .w-6 { width: 1.5rem; }
+        .h-6 { height: 1.5rem; }
+        .w-12 { width: 3rem; }
+        .h-12 { height: 3rem; }
+        .w-14 { width: 3.5rem; }
+        .h-14 { height: 3.5rem; }
+        .text-sm { font-size: 0.875rem; }
+        .text-lg { font-size: 1.125rem; }
+        .text-xl { font-size: 1.25rem; }
+        .text-2xl { font-size: 1.5rem; }
+        
+        .animate-spin { animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .loading-text { color: #94a3b8; font-size: 14px; }
-    </style>
-    
-    <!-- Tailwind CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: { 'sans': ['Inter', 'system-ui', 'sans-serif'] },
-                    colors: {
-                        slate: {
-                            50: '#f8fafc', 100: '#f1f5f9', 200: '#e2e8f0', 300: '#cbd5e1',
-                            400: '#94a3b8', 500: '#64748b', 600: '#475569', 700: '#334155',
-                            800: '#1e293b', 900: '#0f172a', 950: '#020617'
-                        }
-                    }
-                }
-            }
+        
+        .border { border-width: 1px; }
+        .border-2 { border-width: 2px; }
+        .border-slate-600 { border-color: #475569; }
+        .border-t-indigo-500 { border-top-color: #6366f1; }
+        
+        .hover\:bg-white\/10:hover { background-color: rgba(255, 255, 255, 0.1); }
+        .hover\:bg-indigo-500:hover { background-color: #6366f1; }
+        .transition-all { transition: all 0.15s ease-in-out; }
+        .cursor-pointer { cursor: pointer; }
+        
+        .sticky { position: sticky; }
+        .top-0 { top: 0; }
+        .z-100 { z-index: 100; }
+        .backdrop-blur-3xl { backdrop-filter: blur(64px); }
+        .shadow-2xl { box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); }
+        
+        .grid { display: grid; }
+        .grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+        .flex-1 { flex: 1 1 0%; }
+        .flex-col { flex-direction: column; }
+        .relative { position: relative; }
+        .absolute { position: absolute; }
+        .overflow-hidden { overflow: hidden; }
+        .aspect-video { aspect-ratio: 16 / 9; }
+        
+        @media (min-width: 768px) {
+            .md\:px-8 { padding-left: 2rem; padding-right: 2rem; }
+            .md\:px-20 { padding-left: 5rem; padding-right: 5rem; }
+            .md\:h-28 { height: 7rem; }
+            .md\:gap-12 { gap: 3rem; }
+            .md\:rounded-3xl { border-radius: 1.5rem; }
+            .md\:rounded-4xl { border-radius: 2rem; }
         }
-    </script>
+        
+        @media (min-width: 1024px) {
+            .lg\:px-20 { padding-left: 5rem; padding-right: 5rem; }
+            .lg\:gap-16 { gap: 4rem; }
+            .lg\:rounded-4xl { border-radius: 2rem; }
+        }
+        
+        @media (min-width: 1280px) {
+            .xl\:grid-cols-12 { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+            .xl\:col-span-6 { grid-column: span 6 / span 6; }
+        }
+    </style>
     
     <script type="module" src="/index.tsx"></script>
 </head>
-<body>
+<body class="bg-slate-950 text-slate-200">
     <div id="root">
-        <div class="loading">
-            <div class="loading-content">
-                <div class="spinner"></div>
-                <p class="loading-text">Loading AntraX-AI...</p>
+        <div class="min-h-screen bg-slate-950 flex items-center justify-center">
+            <div class="text-center">
+                <div class="w-6 h-6 border-2 border-slate-600 border-t-indigo-500 rounded-full animate-spin mb-4"></div>
+                <p class="text-slate-400 text-sm">Loading AntraX-AI...</p>
             </div>
         </div>
     </div>
