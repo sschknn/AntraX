@@ -5,35 +5,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AntraX-AI | AI Fashion Styling Studio</title>
     <meta name="description" content="Transform your style with AI-powered fashion recommendations. Get personalized outfit suggestions and shop real products instantly.">
-    <meta name="keywords" content="AI fashion, style recommendations, outfit generator, fashion AI, personal styling">
-    
-    <!-- Open Graph -->
-    <meta property="og:title" content="AntraX-AI | AI Fashion Styling Studio">
-    <meta property="og:description" content="Transform your style with AI-powered fashion recommendations">
-    <meta property="og:type" content="website">
     
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
     
+    <!-- Tailwind CDN as fallback -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'sans': ['Inter', 'system-ui', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    
     <script type="module" src="/index.tsx"></script>
 </head>
-<body>
+<body class="bg-[#020617] text-slate-200 font-sans">
     <div id="root">
         <!-- Loading Screen -->
-        <div style="min-height: 100vh; background-color: #020617; display: flex; align-items: center; justify-content: center; color: #94a3b8;">
-            <div style="text-align: center;">
-                <div style="border: 3px solid rgba(255, 255, 255, 0.1); border-top: 3px solid #6366f1; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; margin: 0 auto 16px;"></div>
-                <p style="font-size: 14px;">Loading AntraX-AI...</p>
+        <div class="min-h-screen bg-[#020617] flex items-center justify-center">
+            <div class="text-center">
+                <div class="w-6 h-6 border-2 border-slate-600 border-t-indigo-500 rounded-full animate-spin mx-auto mb-4"></div>
+                <p class="text-slate-400 text-sm">Loading AntraX-AI...</p>
             </div>
         </div>
     </div>
-    
-    <style>
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-    </style>
 </body>
 </html>
