@@ -1,6 +1,6 @@
 {
-  "name": "V-Styler AI: Virtual Try-On",
-  "description": "A cutting-edge virtual try-on application that uses Gemini AI for pose detection, cloth segmentation, and realistic garment swapping.",
+  "name": "AntraX-AI The Show Room",
+  "description": "A high-end virtual try-on studio with voice navigation, digital wardrobe, and Gemini-powered image generation.",
   "requestFramePermissions": [
     "camera",
     "microphone"

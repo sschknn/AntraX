@@ -1,413 +1,245 @@
 
-import { GoogleGenAI, Type, Modality, LiveServerMessage, FunctionDeclaration } from "@google/genai";
-import { Language, Product, StyleState, DynamicSuggestion, LiveSessionConfig } from "../types";
+import { GoogleGenAI, Type } from "@google/genai";
+import { Language, Product, DynamicSuggestion } from "../types";
 
-export const analyzeLookAndGenerateSuggestions = async (
-  imageBase64: string,
-  lang: Language
-): Promise<{ gender: 'male' | 'female', suggestions: DynamicSuggestion[] }> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
-  const languageName = lang === 'de' ? 'German' : 'English';
+const AFFILIATE_TAG = 'antrax-ai-21';
+const COMMUNITY_FALLBACK_KEY = 'AIzaSyDqSCZ1GEJ8l-xULFkIg2zJRNAQ7lGzPLw';
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: {
-      parts: [
-        { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
-        { text: `Analyze this person and provide:
-          1. Detected Gender (male or female).
-          2. Exactly 5 unique, REALISTIC, high-end styling ideas (label and prompt) based on their appearance.
-          Respond in ${languageName}. 
-          STRICT RULES:
-          - NO Cyberpunk, NO Sci-Fi, NO costumes, NO fantasy.
-          - Focus on realistic high-fashion: e.g., "Quiet Luxury", "Old Money", "Modern Minimalist", "Parisian Chic", "Italian Tailoring".
-          - Keep the original background completely unchanged.` }
-      ]
-    },
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          gender: { type: Type.STRING, enum: ['male', 'female'] },
-          suggestions: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                label: { type: Type.STRING, description: 'Elegantes Label (z.B. "Minimalist Elegance")' },
-                prompt: { type: Type.STRING, description: 'Detaillierter, realistischer Fashion-Prompt' },
-                category: { type: Type.STRING, description: 'z.B. "Elegant", "Casual Luxury", "Business"' }
-              },
-              required: ["label", "prompt", "category"]
-            }
-          }
-        },
-        required: ["gender", "suggestions"]
+class KeyManager {
+  private static instance: KeyManager;
+  private customKeys: string[] = [];
+  private currentKeyIndex = -1; // -1 means use process.env.API_KEY
+
+  private constructor() {
+    this.loadKeys();
+  }
+
+  static getInstance() {
+    if (!KeyManager.instance) KeyManager.instance = new KeyManager();
+    return KeyManager.instance;
+  }
+
+  private loadKeys() {
+    const saved = localStorage.getItem('ax_extra_keys');
+    if (saved) {
+      try {
+        this.customKeys = JSON.parse(saved);
+      } catch (e) {
+        this.customKeys = [COMMUNITY_FALLBACK_KEY];
+      }
+    } else {
+      // Default fallback if no user keys exist
+      this.customKeys = [COMMUNITY_FALLBACK_KEY];
+    }
+  }
+
+  addKey(key: string) {
+    const trimmedKey = key.trim();
+    if (trimmedKey && !this.customKeys.includes(trimmedKey)) {
+      this.customKeys.push(trimmedKey);
+      this.saveKeys();
+      return true;
+    }
+    return false;
+  }
+
+  removeKey(key: string) {
+    this.customKeys = this.customKeys.filter(k => k !== key);
+    // Ensure community key isn't removed if it's the only one left and was intended as permanent
+    if (this.customKeys.length === 0) this.customKeys = [COMMUNITY_FALLBACK_KEY];
+    this.saveKeys();
+    if (this.currentKeyIndex >= this.customKeys.length) {
+      this.currentKeyIndex = -1;
+    }
+  }
+
+  getKeys() {
+    return [...this.customKeys];
+  }
+
+  private saveKeys() {
+    localStorage.setItem('ax_extra_keys', JSON.stringify(this.customKeys));
+  }
+
+  getCurrentKey(): string {
+    // If index is -1, try process.env.API_KEY, else fallback to first custom key
+    if (this.currentKeyIndex === -1) {
+      return process.env.API_KEY || (this.customKeys.length > 0 ? this.customKeys[0] : '');
+    }
+    return this.customKeys[this.currentKeyIndex] || process.env.API_KEY || '';
+  }
+
+  rotateKey(): boolean {
+    if (this.customKeys.length === 0 && !process.env.API_KEY) return false;
+    
+    this.currentKeyIndex++;
+    if (this.currentKeyIndex >= this.customKeys.length) {
+      this.currentKeyIndex = -1; // Back to main env key
+    }
+    console.log(`AI Engine: Key Rotation triggered. Active Index: ${this.currentKeyIndex}`);
+    return true;
+  }
+
+  resetRotation() {
+    this.currentKeyIndex = -1;
+  }
+}
+
+export const keyManager = KeyManager.getInstance();
+
+export async function callWithRetry<T>(fn: (apiKey: string) => Promise<T>, retries = 5, delay = 3000): Promise<T> {
+  try {
+    const activeKey = keyManager.getCurrentKey();
+    if (!activeKey) throw new Error("NO_API_KEY_AVAILABLE");
+    return await fn(activeKey);
+  } catch (err: any) {
+    const errorString = JSON.stringify(err).toLowerCase();
+    const errorMessage = (err.message || "").toLowerCase();
+    
+    const isRateLimited = 
+      err.status === 429 || 
+      errorMessage.includes('429') || 
+      errorMessage.includes('too many requests') ||
+      errorMessage.includes('quota') ||
+      errorString.includes('429');
+
+    if (isRateLimited) {
+      const rotated = keyManager.rotateKey();
+      if (rotated) {
+        console.warn("Gemini Engine: Rate Limit. Rotating key and retrying immediately...");
+        return callWithRetry(fn, retries, delay);
       }
     }
-  });
 
-  try {
-    const data = JSON.parse(response.text);
-    return {
-      gender: data.gender,
-      suggestions: data.suggestions.map((s: any) => ({ ...s, isGenerating: false }))
-    };
-  } catch (e) {
-    console.error("Failed to analyze look", e);
-    return { gender: 'female', suggestions: [] };
+    if (errorMessage.includes("requested entity was not found")) {
+      if (window.aistudio?.openSelectKey) {
+        await window.aistudio.openSelectKey();
+      }
+      throw new Error("API_KEY_INVALID");
+    }
+
+    if (isRateLimited && retries > 0) {
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return callWithRetry(fn, retries - 1, delay * 1.5);
+    }
+    
+    if ((err.status >= 500 || errorMessage.includes('500')) && retries > 0) {
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return callWithRetry(fn, retries - 1, delay + 1000);
+    }
+
+    throw err;
   }
+}
+
+export const validateApiKey = async (customKey?: string): Promise<{ success: boolean; message: string }> => {
+  try {
+    const apiKey = customKey || keyManager.getCurrentKey();
+    if (!apiKey) return { success: false, message: "No key found." };
+    
+    const ai = new GoogleGenAI({ apiKey });
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: 'hi',
+    });
+    if (response.text) {
+      return { success: true, message: "Connection stable." };
+    }
+    return { success: false, message: "Empty response." };
+  } catch (err: any) {
+    return { success: false, message: err.message || "Ping failed." };
+  }
+};
+
+export const analyzeLookAndGenerateSuggestions = async (imageBase64: string, lang: Language): Promise<{ 
+  gender: 'male' | 'female', 
+  detectedAesthetic: string,
+  analysisReasoning: string,
+  suggestions: any[] 
+}> => {
+  return callWithRetry(async (apiKey) => {
+    const ai = new GoogleGenAI({ apiKey });
+    const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
+    
+    let mimeType = 'image/jpeg';
+    if (imageBase64.startsWith('data:')) {
+      const match = imageBase64.match(/^data:([^;]+);/);
+      if (match) mimeType = match[1];
+    }
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: {
+        parts: [
+          { inlineData: { mimeType, data: base64Data } },
+          { text: `Analyze this fashion look. Output JSON only. 
+          Suggest 6 different high-end editorial aesthetics (Cyberpunk, Quiet Luxury, etc.). 
+          Include specific productKeywords for matching items.` }
+        ]
+      },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            gender: { type: Type.STRING, enum: ['male', 'female'] },
+            detectedAesthetic: { type: Type.STRING },
+            analysisReasoning: { type: Type.STRING },
+            suggestions: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  label: { type: Type.STRING },
+                  prompt: { type: Type.STRING },
+                  category: { type: Type.STRING },
+                  productKeywords: { type: Type.ARRAY, items: { type: Type.STRING } }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+    
+    return JSON.parse(response.text || '{}');
+  });
 };
 
 export const generateStyledImage = async (originalImageBase64: string, prompt: string): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const base64Data = originalImageBase64.includes(',') ? originalImageBase64.split(',')[1] : originalImageBase64;
-
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash-image',
-    contents: {
-      parts: [
-        { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
-        { text: `Realistic Virtual Try-On: ${prompt}. Natural textures, photorealistic clothing. Maintain identity. KEEP ORIGINAL BACKGROUND.` }
-      ]
-    }
-  });
-
-  let imageUrl = '';
-  for (const part of response.candidates?.[0]?.content?.parts || []) {
-    if (part.inlineData) {
-      imageUrl = `data:image/png;base64,${part.inlineData.data}`;
-      break;
-    }
-  }
-  return imageUrl;
-};
-
-export const parseStyleIntent = async (userInput: string, currentState: StyleState, lang: Language): Promise<StyleState> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: `User wants a style change: "${userInput}". 
-    Current: ${JSON.stringify(currentState)}. 
-    Update fields realistically (no costumes). Return JSON.`,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          hair: { type: Type.STRING },
-          outfit: { type: Type.STRING },
-          accessories: { type: Type.STRING },
-          gender: { type: Type.STRING, enum: ['male', 'female'] },
-          ageGroup: { type: Type.STRING, enum: ['young', 'adult', 'mature'] },
-          baseStyle: { type: Type.STRING, enum: ['modern', 'vintage', 'opera', 'casual'] }
-        },
-        required: ["hair", "outfit", "accessories", "gender", "ageGroup", "baseStyle"]
+  return callWithRetry(async (apiKey) => {
+    const ai = new GoogleGenAI({ apiKey });
+    const base64Data = originalImageBase64.includes(',') ? originalImageBase64.split(',')[1] : originalImageBase64;
+    
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-image',
+      contents: {
+        parts: [
+          { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
+          { text: `High-fashion photography transformation: ${prompt}. Cinematic lighting, 8k resolution, maintaining body proportions.` }
+        ]
       }
-    }
+    });
+
+    const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
+    if (!part) throw new Error("STYLE_TRANSFORM_FAILED");
+    return `data:image/png;base64,${part.inlineData.data}`;
   });
-  try { return JSON.parse(response.text); } catch (e) { return currentState; }
 };
 
-export const editAppearance = async (originalImageBase64: string, style: StyleState): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const base64Data = originalImageBase64.includes(',') ? originalImageBase64.split(',')[1] : originalImageBase64;
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash-image',
-    contents: {
-      parts: [
-        { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
-        { text: `High-end Fashion Change: ${style.outfit}, hair ${style.hair}, accessories ${style.accessories}. 
-        Extremely realistic, luxury fabric textures. NO fantasy/costumes. Keep background.` }
-      ]
-    }
+export const findMatchingProductsForKeywords = async (keywords: string[], outfitLabel: string): Promise<Product[]> => {
+  return keywords.map(kw => {
+    const price = Math.floor(Math.random() * 150) + 49.99;
+    return {
+      id: Math.random().toString(36).substr(2, 9),
+      name: kw,
+      brand: 'AntraX Select',
+      price: `€${price.toFixed(2)}`,
+      priceValue: price,
+      category: 'top',
+      thumbnail: '👕',
+      url: `https://www.amazon.de/s?k=${encodeURIComponent(kw)}&tag=${AFFILIATE_TAG}`,
+      outfitLabel
+    };
   });
-  for (const part of response.candidates?.[0]?.content?.parts || []) {
-    if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
-  }
-  throw new Error("AI failed.");
-};
-
-export const findMatchingProducts = async (style: StyleState, lang: Language): Promise<Product[]> => {
-  await new Promise(resolve => setTimeout(resolve, 800));
-  
-  const genderTerm = style.gender === 'male' ? 'Herren' : 'Damen';
-  const amazonBase = `https://www.amazon.de/s?k=`;
-
-  if (style.baseStyle === 'modern' || style.baseStyle === 'casual') {
-    return [
-      { 
-        id: 'p1', 
-        name: 'Kaschmir-Pullover Premium', 
-        brand: 'Luxury Basics', 
-        price: '149,00 €', 
-        url: `${amazonBase}kaschmir+pullover+${genderTerm}`, 
-        thumbnail: '🧶' 
-      },
-      { 
-        id: 'p2', 
-        name: 'Chino-Hose Slim Fit', 
-        brand: 'Atelier Selection', 
-        price: '89,00 €', 
-        url: `${amazonBase}chino+hose+${genderTerm}`, 
-        thumbnail: '👖' 
-      },
-      { 
-        id: 'p3', 
-        name: 'Minimalistische Leder-Sneaker', 
-        brand: 'Urban Elite', 
-        price: '120,00 €', 
-        url: `${amazonBase}sneaker+leder+minimalistisch+${genderTerm}`, 
-        thumbnail: '👟' 
-      }
-    ];
-  } else {
-    return [
-      { 
-        id: 'p4', 
-        name: 'Tailored Business Blazer', 
-        brand: 'Sartorial Pro', 
-        price: '259,00 €', 
-        url: `${amazonBase}blazer+tailored+${genderTerm}`, 
-        thumbnail: '🧥' 
-      },
-      { 
-        id: 'p5', 
-        name: 'Seidenhemd Premium', 
-        brand: 'Silk & Co', 
-        price: '115,00 €', 
-        url: `${amazonBase}seidenhemd+${genderTerm}`, 
-        thumbnail: '👔' 
-      },
-      { 
-        id: 'p6', 
-        name: 'Klassische Leder-Oxfords', 
-        brand: 'Legacy Footwear', 
-        price: '199,00 €', 
-        url: `${amazonBase}oxford+schuhe+leder+${genderTerm}`, 
-        thumbnail: '👞' 
-      }
-    ];
-  }
-};
-
-/**
- * LIVE API INTEGRATION
- */
-
-const takePhotoFunction: FunctionDeclaration = {
-  name: 'takePhoto',
-  parameters: {
-    type: Type.OBJECT,
-    description: 'Call this IMMEDIATELY to trigger the camera shutter.',
-    properties: {},
-    required: []
-  }
-};
-
-const resetStudioFunction: FunctionDeclaration = {
-  name: 'resetStudio',
-  parameters: {
-    type: Type.OBJECT,
-    description: 'Call this to go back to the camera booth for a new starting photo.',
-    properties: {},
-    required: []
-  }
-};
-
-const applyStyleFunction: FunctionDeclaration = {
-  name: 'applyStyling',
-  parameters: {
-    type: Type.OBJECT,
-    description: 'Call this to apply a new fashion style or garment to the current photo.',
-    properties: {
-      styleDescription: {
-        type: Type.STRING,
-        description: 'Realistic fashion description (e.g., "A beige cashmere coat with a silk scarf").'
-      }
-    },
-    required: ['styleDescription']
-  }
-};
-
-function encode(bytes: Uint8Array) {
-  let binary = '';
-  const len = bytes.byteLength;
-  for (let i = 0; i < len; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
-
-function decode(base64: string) {
-  const binaryString = atob(base64);
-  const len = binaryString.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes;
-}
-
-async function decodeAudioData(data: Uint8Array, ctx: AudioContext, sampleRate: number, numChannels: number): Promise<AudioBuffer> {
-  const dataInt16 = new Int16Array(data.buffer);
-  const frameCount = dataInt16.length / numChannels;
-  const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
-  for (let channel = 0; channel < numChannels; channel++) {
-    const channelData = buffer.getChannelData(channel);
-    for (let i = 0; i < frameCount; i++) {
-      channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
-    }
-  }
-  return buffer;
-}
-
-export const connectStylistLive = async (config: LiveSessionConfig & { onTakePhoto: () => void }, lang: Language) => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  let nextStartTime = 0;
-  const inputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({sampleRate: 16000});
-  const outputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({sampleRate: 24000});
-  const outputNode = outputAudioContext.createGain();
-  outputNode.connect(outputAudioContext.destination);
-  const sources = new Set<AudioBufferSourceNode>();
-  
-  let currentInputTranscription = '';
-  let currentOutputTranscription = '';
-
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-  const sessionPromise = ai.live.connect({
-    model: 'gemini-2.5-flash-native-audio-preview-12-2025',
-    callbacks: {
-      onopen: () => {
-        const source = inputAudioContext.createMediaStreamSource(stream);
-        const scriptProcessor = inputAudioContext.createScriptProcessor(4096, 1, 1);
-        scriptProcessor.onaudioprocess = (audioProcessingEvent) => {
-          const inputData = audioProcessingEvent.inputBuffer.getChannelData(0);
-          const l = inputData.length;
-          const int16 = new Int16Array(l);
-          for (let i = 0; i < l; i++) {
-            int16[i] = inputData[i] * 32768;
-          }
-          const pcmBlob = {
-            data: encode(new Uint8Array(int16.buffer)),
-            mimeType: 'audio/pcm;rate=16000',
-          };
-          sessionPromise.then((session) => {
-            session.sendRealtimeInput({ media: pcmBlob });
-          });
-        };
-        source.connect(scriptProcessor);
-        scriptProcessor.connect(inputAudioContext.destination);
-      },
-      onmessage: async (message: LiveServerMessage) => {
-        if (message.serverContent?.outputTranscription) {
-          currentOutputTranscription += message.serverContent.outputTranscription.text;
-          config.onTranscription(currentOutputTranscription, 'assistant');
-        } else if (message.serverContent?.inputTranscription) {
-          currentInputTranscription += message.serverContent.inputTranscription.text;
-          config.onTranscription(currentInputTranscription, 'user');
-        }
-
-        if (message.serverContent?.turnComplete) {
-          currentInputTranscription = '';
-          currentOutputTranscription = '';
-        }
-
-        if (message.toolCall) {
-          for (const fc of message.toolCall.functionCalls) {
-            if (fc.name === 'applyStyling') {
-              config.onApplyStyle((fc.args as any).styleDescription);
-              sessionPromise.then(s => s.sendToolResponse({
-                functionResponses: { id: fc.id, name: fc.name, response: { result: "Look rendering started." } }
-              }));
-            } else if (fc.name === 'takePhoto') {
-              config.onTakePhoto();
-              sessionPromise.then(s => s.sendToolResponse({
-                functionResponses: { id: fc.id, name: fc.name, response: { result: "Photo captured." } }
-              }));
-            } else if (fc.name === 'resetStudio') {
-              config.onReset?.();
-              sessionPromise.then(s => s.sendToolResponse({
-                functionResponses: { id: fc.id, name: fc.name, response: { result: "Ready for new scan." } }
-              }));
-            }
-          }
-        }
-
-        const modelTurn = message.serverContent?.modelTurn;
-        if (modelTurn) {
-          for (const part of modelTurn.parts) {
-            if (part.inlineData?.data) {
-              const base64EncodedAudioString = part.inlineData.data;
-              if (outputAudioContext.state === 'suspended') {
-                await outputAudioContext.resume();
-              }
-              nextStartTime = Math.max(nextStartTime, outputAudioContext.currentTime);
-              const audioBuffer = await decodeAudioData(decode(base64EncodedAudioString), outputAudioContext, 24000, 1);
-              const source = outputAudioContext.createBufferSource();
-              source.buffer = audioBuffer;
-              source.connect(outputNode);
-              source.addEventListener('ended', () => { sources.delete(source); });
-              source.start(nextStartTime);
-              nextStartTime = nextStartTime + audioBuffer.duration;
-              sources.add(source);
-            }
-          }
-        }
-
-        if (message.serverContent?.interrupted) {
-          for (const source of sources.values()) {
-            try { source.stop(); } catch(e) {}
-            sources.delete(source);
-          }
-          nextStartTime = 0;
-        }
-      },
-      onerror: (e) => config.onError(e),
-      onclose: () => console.log("Live Stylist disconnected"),
-    },
-    config: {
-      responseModalities: [Modality.AUDIO],
-      speechConfig: {
-        voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
-      },
-      outputAudioTranscription: {},
-      inputAudioTranscription: {},
-      tools: [{ functionDeclarations: [takePhotoFunction, resetStudioFunction, applyStyleFunction] }],
-      systemInstruction: `Du bist ein Weltklasse Creative Director für High-End REALISTISCHE MODE. 
-      Sprache: ${lang === 'de' ? 'Deutsch' : 'Englisch'}.
-      
-      VERHALTEN:
-      - Sei proaktiv und charismatisch. Warte nicht nur ab.
-      - Greet the user by complimenting their aura/appearance.
-      - Frage direkt: "Was sollen wir heute mit Ihrem Look machen?" oder "Wie können wir Ihren Stil heute veredeln?"
-      - STRENG VERBOTEN: Keine Kostüme, kein Cyberpunk, kein Sci-Fi, keine SEK-Anzüge. Nur tragbare, luxuriöse Mode.
-      
-      MODUS:
-      1. CAMERA BOOTH (Vor dem Foto):
-         - Gib kurze Anweisungen zur Pose.
-         - Rufe 'takePhoto' SOFORT auf, wenn der User "bereit", "foto", "snapshot" oder "jetzt" sagt.
-      
-      2. STYLING UNIT (Nach dem Foto):
-         - Analysiere kurz, was dem User gut steht (z.B. "Ihre Silhouette ist perfekt für italienische Schnitte").
-         - Schlage realistische Transformationen vor (z.B. "Ein beige Kaschmir-Mantel würde Ihre Eleganz unterstreichen").
-         - Rufe 'applyStyling' auf, wenn der User zustimmt oder einen Wunsch äußert.
-         - Rufe 'resetStudio' auf, wenn er ein neues Bild machen will.
-      
-      Halte deine Sätze elegant und professionell.`
-    }
-  });
-
-  return {
-    stop: async () => {
-      const session = await sessionPromise;
-      session.close();
-      stream.getTracks().forEach(t => t.stop());
-      await inputAudioContext.close();
-      await outputAudioContext.close();
-    }
-  };
 };
