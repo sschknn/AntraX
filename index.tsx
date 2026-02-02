@@ -1,18 +1,17 @@
-
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './src/App';
 import './src/index.css';
 
-// Error boundary for production
+// Verbesserte Error Boundary
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, error: null };
   }
 
   static getDerivedStateFromError(error) {
-    return { hasError: true };
+    return { hasError: true, error };
   }
 
   componentDidCatch(error, errorInfo) {
@@ -29,49 +28,44 @@ class ErrorBoundary extends React.Component {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          flexDirection: 'column',
+          padding: '20px',
+          textAlign: 'center',
           fontFamily: 'Inter, system-ui, sans-serif'
         }
-      }, React.createElement('div', {
-        style: { textAlign: 'center' }
       }, [
         React.createElement('h1', { 
           key: 'title',
-          style: { fontSize: '24px', marginBottom: '16px' } 
-        }, 'AntraX-AI'),
+          style: { fontSize: '24px', marginBottom: '16px', color: '#f87171' }
+        }, '⚠️ AntraX-AI Fehler'),
         React.createElement('p', { 
-          key: 'desc',
-          style: { color: '#94a3b8' } 
-        }, 'Loading application...'),
+          key: 'message',
+          style: { marginBottom: '20px', color: '#94a3b8' }
+        }, 'Die App ist auf einen Fehler gestoßen.'),
         React.createElement('button', {
-          key: 'retry',
+          key: 'reload',
           onClick: () => window.location.reload(),
           style: {
-            marginTop: '16px',
-            padding: '8px 16px',
             backgroundColor: '#6366f1',
             color: 'white',
             border: 'none',
+            padding: '12px 24px',
             borderRadius: '8px',
-            cursor: 'pointer'
+            cursor: 'pointer',
+            fontSize: '16px'
           }
-        }, 'Retry')
-      ]));
+        }, 'App neu laden')
+      ]);
     }
 
     return this.props.children;
   }
 }
 
-const rootElement = document.getElementById('root');
-if (!rootElement) {
-  throw new Error("Could not find root element to mount to");
-}
-
-const root = ReactDOM.createRoot(rootElement);
+// App rendern
+const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
-  <React.StrictMode>
-    <ErrorBoundary>
-      <App />
-    </ErrorBoundary>
-  </React.StrictMode>
+  React.createElement(ErrorBoundary, null,
+    React.createElement(App)
+  )
 );
