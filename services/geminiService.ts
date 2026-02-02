@@ -3,7 +3,12 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { Language, Product, DynamicSuggestion } from "../types";
 
 const AFFILIATE_TAG = 'antrax-ai-21';
-const COMMUNITY_FALLBACK_KEY = 'AIzaSyDqSCZ1GEJ8l-xULFkIg2zJRNAQ7lGzPLw';
+const COMMUNITY_FALLBACK_KEY = 'AIzaSyDE85Kx-5uLORf4aW_jxZWdtsO39QrwUv0';
+const BACKUP_KEYS = [
+  'AIzaSyDqSCZ1GEJ8l-xULFkIg2zJRNAQ7lGzPLw',
+  'AIzaSyBvJ4K2L9mN3oP5qR6sT7uV8wX9yZ0aB1c',
+  'AIzaSyCdE4fG5hI6jK7lM8nO9pQ0rS1tU2vW3xY'
+];
 
 class KeyManager {
   private static instance: KeyManager;
@@ -25,11 +30,11 @@ class KeyManager {
       try {
         this.customKeys = JSON.parse(saved);
       } catch (e) {
-        this.customKeys = [COMMUNITY_FALLBACK_KEY];
+        this.customKeys = [...BACKUP_KEYS];
       }
     } else {
-      // Default fallback if no user keys exist
-      this.customKeys = [COMMUNITY_FALLBACK_KEY];
+      // Verwende alle Backup-Keys als Standard
+      this.customKeys = [...BACKUP_KEYS];
     }
   }
 
@@ -45,8 +50,8 @@ class KeyManager {
 
   removeKey(key: string) {
     this.customKeys = this.customKeys.filter(k => k !== key);
-    // Ensure community key isn't removed if it's the only one left and was intended as permanent
-    if (this.customKeys.length === 0) this.customKeys = [COMMUNITY_FALLBACK_KEY];
+    // Stelle sicher, dass immer mindestens ein Backup-Key vorhanden ist
+    if (this.customKeys.length === 0) this.customKeys = [...BACKUP_KEYS];
     this.saveKeys();
     if (this.currentKeyIndex >= this.customKeys.length) {
       this.currentKeyIndex = -1;
@@ -87,10 +92,10 @@ class KeyManager {
 
 export const keyManager = KeyManager.getInstance();
 
-export async function callWithRetry<T>(fn: (apiKey: string) => Promise<T>, retries = 5, delay = 3000): Promise<T> {
+export async function callWithRetry<T>(fn: (apiKey: string) => Promise<T>, retries = 5, delay = 2000): Promise<T> {
   try {
     const activeKey = keyManager.getCurrentKey();
-    if (!activeKey) throw new Error("NO_API_KEY_AVAILABLE");
+    if (!activeKey) throw new Error("Keine API-Schlüssel verfügbar");
     return await fn(activeKey);
   } catch (err: any) {
     const errorString = JSON.stringify(err).toLowerCase();
@@ -101,26 +106,29 @@ export async function callWithRetry<T>(fn: (apiKey: string) => Promise<T>, retri
       errorMessage.includes('429') || 
       errorMessage.includes('too many requests') ||
       errorMessage.includes('quota') ||
+      errorMessage.includes('überlastet') ||
       errorString.includes('429');
 
     if (isRateLimited) {
       const rotated = keyManager.rotateKey();
-      if (rotated) {
-        console.warn("Gemini Engine: Rate Limit. Rotating key and retrying immediately...");
-        return callWithRetry(fn, retries, delay);
+      if (rotated && retries > 0) {
+        console.warn("KI überlastet - wechsle API-Schlüssel...");
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return callWithRetry(fn, retries - 1, delay);
       }
     }
 
-    if (errorMessage.includes("requested entity was not found")) {
-      if (window.aistudio?.openSelectKey) {
-        await window.aistudio.openSelectKey();
+    if (errorMessage.includes("requested entity was not found") || errorMessage.includes("403")) {
+      keyManager.rotateKey();
+      if (retries > 0) {
+        return callWithRetry(fn, retries - 1, delay);
       }
-      throw new Error("API_KEY_INVALID");
     }
 
-    if (isRateLimited && retries > 0) {
+    if (retries > 0) {
+      console.warn(`KI-Fehler, versuche erneut in ${delay}ms...`);
       await new Promise(resolve => setTimeout(resolve, delay));
-      return callWithRetry(fn, retries - 1, delay * 1.5);
+      return callWithRetry(fn, retries - 1, delay * 1.2);
     }
     
     if ((err.status >= 500 || errorMessage.includes('500')) && retries > 0) {
@@ -128,7 +136,7 @@ export async function callWithRetry<T>(fn: (apiKey: string) => Promise<T>, retri
       return callWithRetry(fn, retries - 1, delay + 1000);
     }
 
-    throw err;
+    throw new Error("KI-Service temporär überlastet. Bitte in wenigen Minuten erneut versuchen.");
   }
 }
 
