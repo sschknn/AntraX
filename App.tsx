@@ -10,6 +10,8 @@ import { ToastContainer } from './components/ui/Toast';
 import { OutfitGallery } from './components/OutfitGallery';
 import { DigitalWardrobe } from './components/DigitalWardrobe';
 import { firebaseService } from './services/firebaseService';
+import { useTranslation } from './translations';
+import { LanguageSelector } from './components/LanguageSelector';
 import { analyzeLookAndGenerateSuggestions, generateStyledImage, findMatchingProductsForKeywords, validateApiKey, keyManager } from './services/geminiService';
 import { Button } from './components/ui/Button';
 
@@ -230,8 +232,65 @@ export default function App() {
   const [user, setUser] = useState<UserAuth | null>(null);
   const [originalPhoto, setOriginalPhoto] = useState<string | null>(null);
   const [currentDisplayPhoto, setCurrentDisplayPhoto] = useState<string | null>(null);
-  const [currentOutfitProducts, setCurrentOutfitProducts] = useState<Product[]>([]);
+  const [hairStyle, setHairStyle] = useState<string | null>(null); // Gespeicherte Haarfarbe/Frisur
+  const [currentOutfitProducts, setCurrentOutfitProducts] = useState<Product[]>([
+    {
+      id: "demo-1",
+      name: "Elegante Bluse",
+      brand: "Fashion Brand",
+      price: 89.99,
+      currency: "EUR",
+      imageUrl: "https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=400",
+      url: "#",
+      sizes: ["XS", "S", "M", "L", "XL"],
+      colors: ["#FFFFFF", "#000000", "#FF6B6B"]
+    },
+    {
+      id: "demo-2", 
+      name: "Designer Jeans",
+      brand: "Denim Co",
+      price: 129.99,
+      currency: "EUR",
+      imageUrl: "https://images.unsplash.com/photo-1542272604-787c3835535d?w=400",
+      url: "#",
+      sizes: ["28", "30", "32", "34", "36"],
+      colors: ["#1E3A8A", "#000000", "#6B7280"]
+    },
+    {
+      id: "demo-3",
+      name: "Sneaker Classic",
+      brand: "Shoe Brand",
+      price: 159.99,
+      currency: "EUR", 
+      imageUrl: "https://images.unsplash.com/photo-1549298916-b41d501d3772?w=400",
+      url: "#",
+      sizes: ["36", "37", "38", "39", "40", "41", "42"],
+      colors: ["#FFFFFF", "#000000", "#EF4444"]
+    }
+  ]);
   const [dynamicSuggestions, setDynamicSuggestions] = useState<DynamicSuggestion[]>([]);
+  
+  // Zufällige Straßen-Outfit Prompts für Jugendliche
+  const getRandomStreetOutfits = () => {
+    const outfits = [
+      { label: "Skater Style", prompt: "Skater-Look mit weitem T-Shirt, Baggy Jeans und Vans Sneakers" },
+      { label: "Streetwear", prompt: "Oversized Hoodie, Jogginghose und chunky Sneakers im Streetwear-Style" },
+      { label: "Y2K Revival", prompt: "Y2K inspiriertes Outfit mit Crop Top, Low-Rise Jeans und Platform Sneakers" },
+      { label: "Grunge Vibes", prompt: "Grunge-Look mit Flanellhemd, zerrissenen Jeans und Doc Martens" },
+      { label: "Minimalist", prompt: "Minimalistisches Outfit mit weißem T-Shirt, Mom Jeans und weißen Sneakers" },
+      { label: "Hip Hop", prompt: "Hip-Hop Style mit Oversized Jersey, Cargo Shorts und Air Jordans" },
+      { label: "Indie Kid", prompt: "Indie-Look mit Vintage Band T-Shirt, Straight Jeans und Converse" },
+      { label: "Soft Girl", prompt: "Soft Girl Aesthetic mit Pastell Hoodie, Plisseerock und chunky Sneakers" },
+      { label: "Dark Academia", prompt: "Dark Academia mit Rollkragenpullover, Cordhose und Loafers" },
+      { label: "Cottagecore", prompt: "Cottagecore-inspiriert mit Strickpullover, Midi Rock und Boots" },
+      { label: "Tech Wear", prompt: "Techwear mit schwarzer Cargo-Hose, Utility Vest und futuristischen Sneakers" },
+      { label: "Vintage 90s", prompt: "90er Jahre Look mit Windbreaker, Mom Jeans und Plateau Sneakers" }
+    ];
+    
+    // Wähle 3 zufällige Outfits
+    const shuffled = outfits.sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, 3);
+  };
   const [savedStyles, setSavedStyles] = useState<SavedStyle[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isQueueProcessing, setIsQueueProcessing] = useState(false);
@@ -244,32 +303,7 @@ export default function App() {
   const [wardrobe, setWardrobe] = useState<WardrobeItem[]>([]);
   const [detectedAesthetic, setDetectedAesthetic] = useState<string | null>(null);
 
-  const t = useMemo(() => ({
-    de: {
-      studio: "Design Studio", gallery: "Archiv", wardrobe: "Cloud Garderobe", settings: "Setup",
-      generating: "KI stylt dich...", aiInsights: "KI TRENDS",
-      outfitSaved: "In Cloud gesichert!", 
-      styleSaved: "Style-Preset gespeichert!",
-      changeAccount: "Konto / API Key wechseln",
-      signOut: "Abmelden",
-      apiError: "KI überlastet. Warte auf freien Slot...",
-      rotating: "Rate Limit! Rotiere Key...",
-      safetyError: "Blockiert von KI-Sicherheit.",
-      presets: "Style-Bibliothek"
-    },
-    en: {
-      studio: "Design Studio", gallery: "Archive", wardrobe: "Cloud Wardrobe", settings: "Setup",
-      generating: "AI Styling...", aiInsights: "AI TRENDS",
-      outfitSaved: "Saved to Cloud!", 
-      styleSaved: "Style preset saved!",
-      changeAccount: "Change Account / Key",
-      signOut: "Sign Out",
-      apiError: "AI busy. Waiting for free slot...",
-      rotating: "Rate Limit! Rotating key...",
-      safetyError: "Blocked by AI safety filters.",
-      presets: "Style Library"
-    }
-  }[lang]), [lang]);
+  const { t } = useTranslation(lang);
 
   useEffect(() => {
     if (user) {
@@ -300,7 +334,16 @@ export default function App() {
       try {
         const item = dynamicSuggestions[nextIdx];
         const products = await findMatchingProductsForKeywords(item.productKeywords, item.label);
-        const imgUrl = await generateStyledImage(originalPhoto, item.prompt);
+        
+        // Erweitere Prompt für mehrere Personen und jugendlichen Style
+        let enhancedPrompt = `${item.prompt}. Wenn mehrere Personen im Bild sind, style alle Personen im gleichen Stil. Fokus auf jugendlichen Street-Style für Anfang 20-Jährige. WICHTIG: Behalte den ursprünglichen Hintergrund bei, verändere nur die Kleidung. Minimale Gesichtsretusche - natürliches Aussehen beibehalten.`;
+        
+        // Kombiniere mit gespeicherter Haarfarbe falls vorhanden
+        if (hairStyle) {
+          enhancedPrompt += ` Behalte die Haarfarbe/Frisur bei: ${hairStyle}`;
+        }
+        
+        const imgUrl = await generateStyledImage(originalPhoto, enhancedPrompt);
 
         setDynamicSuggestions(curr => curr.map((s, i) => 
           i === nextIdx ? { ...s, imageUrl: imgUrl, products, status: 'success' } : s
@@ -318,17 +361,37 @@ export default function App() {
       }
     };
 
-    const timer = setTimeout(processNext, 1000);
+    const timer = setTimeout(() => {
+      // Nur verarbeiten wenn API Key vorhanden ist
+      if (!import.meta.env.VITE_GEMINI_API_KEY && !import.meta.env.GEMINI_API_KEY) {
+        console.log('Kein API Key gefunden - überspringe automatische Verarbeitung');
+        return;
+      }
+      processNext();
+    }, 1000);
     return () => clearTimeout(timer);
   }, [dynamicSuggestions, originalPhoto, isQueueProcessing]);
 
   const handleCapture = async (base64: string) => {
     setOriginalPhoto(base64);
     setCurrentDisplayPhoto(base64);
-    setDynamicSuggestions([]);
+    
+    // Generiere neue zufällige Outfits bei jedem Foto
+    const randomOutfits = getRandomStreetOutfits();
+    setDynamicSuggestions(randomOutfits.map((outfit, idx) => ({
+      id: `random-${Date.now()}-${idx}`,
+      label: outfit.label,
+      prompt: outfit.prompt,
+      status: 'queued' as const,
+      productKeywords: [outfit.label.toLowerCase(), 'street', 'youth'],
+      imageUrl: null,
+      products: []
+    })));
+    
+    setHairStyle(null); // Reset Haarfarbe bei neuem Foto
     setCurrentStep(Step.EDITING);
     setIsProcessing(true);
-    setMessages([{ id: 'analyzing', role: 'assistant', text: lang === 'de' ? "Initialisiere High-End Analyse..." : "Initializing high-end analysis..." }]);
+    setMessages([{ id: 'analyzing', role: 'assistant', text: lang === 'de' ? "Analysiere Personen und generiere Street-Styles..." : "Analyzing people and generating street styles..." }]);
 
     try {
       const result = await analyzeLookAndGenerateSuggestions(base64, lang);
@@ -348,7 +411,24 @@ export default function App() {
     setIsProcessing(true);
 
     try {
-      const imgUrl = await generateStyledImage(originalPhoto, text);
+      // Erkenne Haarveränderungen und speichere sie
+      const isHairChange = text.toLowerCase().includes('haar') || text.toLowerCase().includes('hair') || 
+                          text.toLowerCase().includes('frisur') || text.toLowerCase().includes('hairstyle') ||
+                          text.toLowerCase().includes('farbe') || text.toLowerCase().includes('color');
+      
+      if (isHairChange) {
+        setHairStyle(text);
+      }
+      
+      // Erweitere Prompt für mehrere Personen und jugendlichen Style
+      let enhancedPrompt = `${text}. Wenn mehrere Personen im Bild sind, style alle Personen im gleichen Stil. Fokus auf jugendlichen Street-Style für Anfang 20-Jährige. WICHTIG: Behalte den ursprünglichen Hintergrund bei, verändere nur die Kleidung. Minimale Gesichtsretusche - natürliches Aussehen beibehalten.`;
+      
+      // Kombiniere mit gespeicherter Haarfarbe
+      if (hairStyle) {
+        enhancedPrompt += ` Behalte die Haarfarbe/Frisur bei: ${hairStyle}`;
+      }
+      
+      const imgUrl = await generateStyledImage(originalPhoto, enhancedPrompt);
       setCurrentDisplayPhoto(imgUrl);
       setMessages(prev => [...prev, { id: 'done', role: 'assistant', text: lang === 'de' ? "Look transformiert." : "Look transformed." }]);
       const products = await findMatchingProductsForKeywords([text], "Custom Style");
@@ -385,61 +465,85 @@ export default function App() {
     <div className="min-h-screen bg-[#020617] text-white flex flex-col font-sans overflow-x-hidden selection:bg-indigo-500/30">
       {!user && <LoginScreen onLogin={setUser} />}
       
-      <header className="px-8 md:px-20 h-28 flex items-center justify-between border-b border-white/5 backdrop-blur-3xl sticky top-0 z-[100]">
-        <div className="flex items-center gap-8 cursor-pointer group" onClick={() => setCurrentStep(Step.CAMERA)}>
-          <div className="bg-gradient-to-br from-indigo-500 to-purple-800 w-14 h-14 rounded-3xl flex items-center justify-center shadow-2xl transition-all group-hover:scale-110 group-hover:rotate-6">
-             <span className="font-black text-2xl">AX</span>
+      <header className="px-4 md:px-8 lg:px-20 h-20 md:h-28 flex items-center justify-between border-b border-white/5 backdrop-blur-3xl sticky top-0 z-[100]">
+        <div className="flex items-center gap-3 md:gap-8 cursor-pointer group" onClick={() => setCurrentStep(Step.CAMERA)}>
+          <div className="bg-gradient-to-br from-indigo-500 to-purple-800 w-10 h-10 md:w-14 md:h-14 rounded-2xl md:rounded-3xl flex items-center justify-center shadow-2xl transition-all group-hover:scale-110 group-hover:rotate-6">
+             <span className="font-black text-lg md:text-2xl">AX</span>
           </div>
-          <div className="hidden lg:flex flex-col">
-            <span className="text-[10px] font-black tracking-[0.4em] text-slate-500 uppercase">AntraX-AI</span>
-            <span className="text-[12px] font-black tracking-tight text-white uppercase">Show Room</span>
+          <div className="hidden md:flex flex-col">
+            <span className="text-[8px] md:text-[10px] font-black tracking-[0.3em] md:tracking-[0.4em] text-slate-500 uppercase">AntraX-AI</span>
+            <span className="text-[10px] md:text-[12px] font-black tracking-tight text-white uppercase">Show Room</span>
           </div>
         </div>
         
-        <nav className="flex items-center gap-12">
+        {/* Mobile Navigation */}
+        <nav className="flex md:hidden items-center gap-2">
           {[Step.CAMERA, Step.GALLERY, Step.WARDROBE].map(step => (
-            <button key={step} onClick={() => setCurrentStep(step)} className={`text-[10px] font-black uppercase tracking-[0.3em] transition-all hover:text-white ${currentStep === step ? 'text-white border-b-2 border-indigo-500 pb-1' : 'text-slate-500'}`}>
-              {step === Step.CAMERA ? t.studio : step === Step.GALLERY ? t.gallery : t.wardrobe}
+            <button key={step} onClick={() => setCurrentStep(step)} className={`text-[8px] font-black uppercase tracking-[0.2em] transition-all hover:text-white px-2 py-1 rounded ${currentStep === step ? 'text-white bg-indigo-500/20' : 'text-slate-500'}`}>
+              {step === Step.CAMERA ? 'CAM' : step === Step.GALLERY ? 'GAL' : 'WAR'}
             </button>
           ))}
         </nav>
+        
+        {/* Desktop Navigation */}
+        <nav className="hidden md:flex items-center gap-6 lg:gap-12">
+          {[Step.CAMERA, Step.GALLERY, Step.WARDROBE].map(step => (
+            <button key={step} onClick={() => setCurrentStep(step)} className={`text-[9px] lg:text-[10px] font-black uppercase tracking-[0.3em] transition-all hover:text-white ${currentStep === step ? 'text-white border-b-2 border-indigo-500 pb-1' : 'text-slate-500'}`}>
+              {step === Step.CAMERA ? t('camera') : step === Step.GALLERY ? t('gallery') : t('wardrobe')}
+            </button>
+          ))}
+          <LanguageSelector 
+            currentLanguage={lang} 
+            onLanguageChange={setLang}
+            className="ml-2 lg:ml-4"
+          />
+        </nav>
 
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-3 md:gap-6">
+          {/* Mobile Language Selector */}
+          <div className="md:hidden">
+            <LanguageSelector 
+              currentLanguage={lang} 
+              onLanguageChange={setLang}
+              className="scale-75"
+            />
+          </div>
+          
           <div className="group relative">
-             <button className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden hover:bg-white/10 transition-all">
-                <span className="text-[10px] font-black">{user?.displayName?.[0]}</span>
+             <button className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden hover:bg-white/10 transition-all">
+                <span className="text-[9px] md:text-[10px] font-black">{user?.displayName?.[0]}</span>
              </button>
              {/* Robust bridge for dropdown */}
              <div className="absolute right-0 top-[100%] h-4 w-full pointer-events-auto"></div>
-             <div className="absolute right-0 top-full pt-4 w-64 opacity-0 translate-y-4 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto transition-all z-[200]">
-                <div className="bg-slate-900/95 backdrop-blur-3xl border border-white/10 rounded-3xl p-6 shadow-2xl">
-                  <div className="flex flex-col gap-4">
-                    <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Profile</span>
-                    <span className="text-[11px] font-black text-white truncate mb-2">{user?.email}</span>
+             <div className="absolute right-0 top-full pt-4 w-56 md:w-64 opacity-0 translate-y-4 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto transition-all z-[200]">
+                <div className="bg-slate-900/95 backdrop-blur-3xl border border-white/10 rounded-2xl md:rounded-3xl p-4 md:p-6 shadow-2xl">
+                  <div className="flex flex-col gap-3 md:gap-4">
+                    <span className="text-[7px] md:text-[8px] font-black text-slate-500 uppercase tracking-widest">Profile</span>
+                    <span className="text-[10px] md:text-[11px] font-black text-white truncate mb-1 md:mb-2">{user?.email}</span>
                     <button 
                       onClick={(e) => { e.stopPropagation(); setCurrentStep(Step.SETTINGS); }} 
-                      className="w-full py-3.5 bg-indigo-500/10 rounded-2xl text-[9px] font-black uppercase tracking-widest text-indigo-400 hover:bg-indigo-500 hover:text-white transition-all"
+                      className="w-full py-2.5 md:py-3.5 bg-indigo-500/10 rounded-xl md:rounded-2xl text-[8px] md:text-[9px] font-black uppercase tracking-widest text-indigo-400 hover:bg-indigo-500 hover:text-white transition-all"
                     >
-                      {t.settings}
+                      {t('settings')}
                     </button>
                     <button 
                       onClick={(e) => { e.stopPropagation(); window.location.reload(); }} 
-                      className="w-full py-3.5 bg-red-500/10 rounded-2xl text-[9px] font-black uppercase tracking-widest text-red-500 hover:bg-red-500 hover:text-white transition-all"
+                      className="w-full py-2.5 md:py-3.5 bg-red-500/10 rounded-xl md:rounded-2xl text-[8px] md:text-[9px] font-black uppercase tracking-widest text-red-500 hover:bg-red-500 hover:text-white transition-all"
                     >
-                      {t.signOut}
+                      {t('signOut')}
                     </button>
                   </div>
                 </div>
              </div>
           </div>
-          <button onClick={() => setIsCartOpen(true)} className="relative p-3.5 bg-white/5 rounded-full hover:bg-white/10 transition-all border border-white/5">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
-            {cart.length > 0 && <span className="absolute -top-1 -right-1 bg-indigo-500 text-[8px] font-black w-5 h-5 rounded-full flex items-center justify-center border-2 border-slate-950">{cart.length}</span>}
+          <button onClick={() => setIsCartOpen(true)} className="relative p-2.5 md:p-3.5 bg-white/5 rounded-full hover:bg-white/10 transition-all border border-white/5">
+            <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
+            {cart.length > 0 && <span className="absolute -top-1 -right-1 bg-indigo-500 text-[7px] md:text-[8px] font-black w-4 h-4 md:w-5 md:h-5 rounded-full flex items-center justify-center border-2 border-slate-950">{cart.length}</span>}
           </button>
         </div>
       </header>
 
-      <main className="flex-1 p-8 md:p-20">
+      <main className="flex-1 p-4 md:p-8 lg:p-20">
         <ToastContainer toasts={toasts} onRemove={id => setToasts(toasts.filter(t => t.id !== id))} />
 
         {currentStep === Step.SETTINGS ? (
@@ -449,16 +553,23 @@ export default function App() {
         ) : currentStep === Step.WARDROBE ? (
           <DigitalWardrobe items={wardrobe} lang={lang} onUpload={async item => { if(user) { await firebaseService.saveWardrobeItem(user.uid, item); setWardrobe(prev => [...prev, item]); } }} onDelete={id => setWardrobe(wardrobe.filter(w => w.id !== id))} />
         ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-16">
-            <div className="xl:col-span-8 flex flex-col gap-12">
-              <div className="relative aspect-video bg-black rounded-[4rem] border border-white/5 overflow-hidden shadow-2xl">
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 md:gap-12 lg:gap-16">
+            <div className="xl:col-span-6 flex flex-col gap-12 h-full">
+               <div className="flex-1 min-h-[600px]">
+                 <ChatInterface messages={messages} onSendMessage={handleSendMessage} isProcessing={isProcessing} lang={lang} />
+               </div>
+               <ProductList products={currentOutfitProducts} lang={lang} onQuickView={setQuickViewProduct} onAddToCart={p => setCart(prev => [...prev, { id: Math.random().toString(), product: p, size: 'M', color: '#000', quantity: 1 }])} />
+            </div>
+            
+            <div className="xl:col-span-6 flex flex-col gap-6 md:gap-12">
+              <div className="relative aspect-video bg-black rounded-[2rem] md:rounded-[3rem] lg:rounded-[4rem] border border-white/5 overflow-hidden shadow-2xl">
                 {currentStep === Step.CAMERA ? (
                    <CameraView onCapture={handleCapture} lang={lang} />
                 ) : (
                    <div className="w-full h-full relative group">
                       {currentDisplayPhoto && <img src={currentDisplayPhoto} className="w-full h-full object-contain" alt="Current Look" />}
-                      <div className="absolute top-8 right-8 flex gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                         <button onClick={saveToCloud} className="p-5 bg-white/10 backdrop-blur-xl rounded-2xl hover:bg-white/20 text-white transition-all shadow-xl">
+                      <div className="absolute top-4 right-4 md:top-8 md:right-8 flex gap-2 md:gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                         <button onClick={saveToCloud} className="p-3 md:p-5 bg-white/10 backdrop-blur-xl rounded-xl md:rounded-2xl hover:bg-white/20 text-white transition-all shadow-xl">
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
                          </button>
                       </div>
@@ -472,22 +583,31 @@ export default function App() {
                 )}
               </div>
               
-              <section className="bg-white/5 backdrop-blur-3xl rounded-[3rem] p-12 border border-white/10 shadow-2xl">
-                <div className="flex items-center justify-between mb-12">
-                  <h3 className="text-[11px] font-black text-indigo-400 uppercase tracking-[0.5em]">{t.aiInsights}</h3>
-                  <div className="h-[1px] flex-1 bg-white/5 ml-10"></div>
+              <section className="bg-white/5 backdrop-blur-3xl rounded-[2rem] md:rounded-[3rem] p-6 md:p-12 border border-white/10 shadow-2xl">
+                <div className="flex items-center justify-between mb-6 md:mb-12">
+                  <h3 className="text-[10px] md:text-[11px] font-black text-indigo-400 uppercase tracking-[0.3em] md:tracking-[0.5em]">{t('aiInsights')}</h3>
+                  <div className="h-[1px] flex-1 bg-white/5 ml-4 md:ml-10"></div>
                 </div>
-                <div className="flex gap-10 overflow-x-auto no-scrollbar pb-8">
-                  {dynamicSuggestions.map((s, idx) => (
-                    <div key={idx} className="flex-none w-72 group">
-                      <div className="aspect-[3/4] rounded-[2.5rem] bg-slate-900 border border-white/5 mb-6 overflow-hidden relative shadow-2xl cursor-pointer" onClick={() => { if(s.imageUrl) { setCurrentDisplayPhoto(s.imageUrl); setCurrentOutfitProducts(s.products || []); }}}>
-                        {s.status === 'success' ? (
-                          <img src={s.imageUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" alt={s.label} />
-                        ) : s.status === 'safety' ? (
-                          <div className="w-full h-full flex flex-col items-center justify-center gap-4 text-center px-6">
-                             <svg className="w-10 h-10 text-amber-500/30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                             <span className="text-[9px] font-black text-amber-500/50 uppercase tracking-widest">{t.safetyError}</span>
-                          </div>
+                
+                {/* Mobile: Vertical Stack, Desktop: Horizontal Scroll */}
+                <div className="flex flex-col md:flex-row gap-4 md:gap-10 md:overflow-x-auto md:no-scrollbar md:pb-8">
+                  {dynamicSuggestions.length === 0 ? (
+                    // Fallback wenn keine Suggestions vorhanden - wird nicht mehr verwendet da immer zufällige generiert werden
+                    <div className="text-center p-8">
+                      <span className="text-slate-500">Mache ein Foto um Street-Styles zu generieren</span>
+                    </div>
+                  ) : (
+                    // Dynamische Suggestions
+                    dynamicSuggestions.map((s, idx) => (
+                      <div key={idx} className="flex-none w-full md:w-72 group">
+                        <div className="aspect-[3/4] rounded-[1.5rem] md:rounded-[2.5rem] bg-slate-900 border border-white/5 mb-3 md:mb-6 overflow-hidden relative shadow-2xl cursor-pointer" onClick={() => { if(s.imageUrl) { setCurrentDisplayPhoto(s.imageUrl); setCurrentOutfitProducts(s.products || []); }}}>
+                          {s.status === 'success' ? (
+                            <img src={s.imageUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" alt={s.label} />
+                          ) : s.status === 'safety' ? (
+                            <div className="w-full h-full flex flex-col items-center justify-center gap-2 md:gap-4 text-center px-4 md:px-6">
+                               <svg className="w-8 h-8 md:w-10 md:h-10 text-amber-500/30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                               <span className="text-[8px] md:text-[9px] font-black text-amber-500/50 uppercase tracking-widest">{t('safetyError')}</span>
+                            </div>
                         ) : (
                           <div className="w-full h-full flex flex-col items-center justify-center gap-4">
                              <div className={`w-10 h-10 border-4 border-indigo-500/10 border-t-indigo-500 rounded-full ${s.status === 'processing' ? 'animate-spin' : ''}`}></div>
@@ -495,19 +615,15 @@ export default function App() {
                           </div>
                         )}
                       </div>
-                      <span className="text-[12px] font-black text-white uppercase block mb-1 truncate tracking-wider">{s.label}</span>
-                      <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">{s.category}</span>
+                      <div className="text-center">
+                        <h4 className="text-[11px] md:text-[12px] font-black text-white mb-1 md:mb-2">{s.label}</h4>
+                        <p className="text-[9px] md:text-[10px] text-slate-400 leading-relaxed px-2">{s.prompt}</p>
+                      </div>
                     </div>
-                  ))}
+                  ))
+                  )}
                 </div>
               </section>
-            </div>
-
-            <div className="xl:col-span-4 flex flex-col gap-12 h-full">
-               <div className="flex-1 min-h-[600px]">
-                 <ChatInterface messages={messages} onSendMessage={handleSendMessage} isProcessing={isProcessing} lang={lang} />
-               </div>
-               <ProductList products={currentOutfitProducts} lang={lang} onQuickView={setQuickViewProduct} onAddToCart={p => setCart(prev => [...prev, { id: Math.random().toString(), product: p, size: 'M', color: '#000', quantity: 1 }])} />
             </div>
           </div>
         )}

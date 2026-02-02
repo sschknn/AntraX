@@ -228,18 +228,58 @@ export const generateStyledImage = async (originalImageBase64: string, prompt: s
 };
 
 export const findMatchingProductsForKeywords = async (keywords: string[], outfitLabel: string): Promise<Product[]> => {
-  return keywords.map(kw => {
-    const price = Math.floor(Math.random() * 150) + 49.99;
-    return {
-      id: Math.random().toString(36).substr(2, 9),
-      name: kw,
-      brand: 'AntraX Select',
-      price: `€${price.toFixed(2)}`,
-      priceValue: price,
-      category: 'top',
-      thumbnail: '👕',
-      url: `https://www.amazon.de/s?k=${encodeURIComponent(kw)}&tag=${AFFILIATE_TAG}`,
-      outfitLabel
+  // Realistische Produkte basierend auf dem Style
+  const getProductsForStyle = (style: string) => {
+    const styleProducts: { [key: string]: any[] } = {
+      'skater': [
+        { name: 'Vans Old Skool Sneakers', brand: 'Vans', price: 65.00, image: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?w=400' },
+        { name: 'Oversized Skate T-Shirt', brand: 'Thrasher', price: 29.99, image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400' },
+        { name: 'Baggy Jeans', brand: 'Dickies', price: 79.99, image: 'https://images.unsplash.com/photo-1542272604-787c3835535d?w=400' }
+      ],
+      'streetwear': [
+        { name: 'Champion Reverse Weave Hoodie', brand: 'Champion', price: 89.99, image: 'https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=400' },
+        { name: 'Nike Air Force 1', brand: 'Nike', price: 109.99, image: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?w=400' },
+        { name: 'Cargo Joggers', brand: 'Stone Island', price: 159.99, image: 'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=400' }
+      ],
+      'y2k': [
+        { name: 'Cropped Baby Tee', brand: 'Urban Outfitters', price: 24.99, image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400' },
+        { name: 'Low Rise Jeans', brand: 'BDG', price: 69.99, image: 'https://images.unsplash.com/photo-1542272604-787c3835535d?w=400' },
+        { name: 'Platform Sneakers', brand: 'Buffalo', price: 129.99, image: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?w=400' }
+      ],
+      'grunge': [
+        { name: 'Flannel Shirt', brand: 'Carhartt', price: 49.99, image: 'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?w=400' },
+        { name: 'Ripped Mom Jeans', brand: 'Levi\'s', price: 89.99, image: 'https://images.unsplash.com/photo-1542272604-787c3835535d?w=400' },
+        { name: 'Dr. Martens 1460', brand: 'Dr. Martens', price: 169.99, image: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?w=400' }
+      ],
+      'minimalist': [
+        { name: 'Basic White Tee', brand: 'COS', price: 35.00, image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400' },
+        { name: 'High Waist Mom Jeans', brand: 'Weekday', price: 59.99, image: 'https://images.unsplash.com/photo-1542272604-787c3835535d?w=400' },
+        { name: 'Stan Smith Sneakers', brand: 'Adidas', price: 99.99, image: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?w=400' }
+      ],
+      'default': [
+        { name: 'Basic T-Shirt', brand: 'H&M', price: 19.99, image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400' },
+        { name: 'Straight Jeans', brand: 'Zara', price: 49.99, image: 'https://images.unsplash.com/photo-1542272604-787c3835535d?w=400' },
+        { name: 'White Sneakers', brand: 'Nike', price: 79.99, image: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?w=400' }
+      ]
     };
-  });
+
+    const styleKey = style.toLowerCase().replace(/\s+/g, '');
+    return styleProducts[styleKey] || styleProducts['default'];
+  };
+
+  const products = getProductsForStyle(outfitLabel);
+  const sizes = ['XS', 'S', 'M', 'L', 'XL'];
+  const colors = ['#000000', '#FFFFFF', '#FF6B6B', '#4ECDC4', '#45B7D1'];
+
+  return products.map((product, idx) => ({
+    id: Math.random().toString(36).substr(2, 9),
+    name: product.name,
+    brand: product.brand,
+    price: product.price,
+    currency: 'EUR',
+    imageUrl: product.image,
+    url: `https://www.amazon.de/s?k=${encodeURIComponent(product.name)}&tag=${AFFILIATE_TAG}`,
+    sizes: sizes,
+    colors: colors
+  }));
 };

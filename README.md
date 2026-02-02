@@ -1,20 +1,82 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# AntraX-AI Fashion Styling Studio
 
-# Run and deploy your AI Studio app
+🚀 **AI-powered fashion styling app with real product recommendations**
 
-This contains everything you need to run your app locally.
+## Features
 
-View your app in AI Studio: https://ai.studio/apps/drive/18myDK79KwovfngEnGzpfI7sk6htPpHlB
+- ✨ **AI Fashion Styling**: Transform your photos with Gemini AI
+- 👥 **Multi-Person Support**: Style multiple people simultaneously  
+- 🎨 **12 Street Styles**: Random youth-focused outfit generation
+- 🛍️ **Real Products**: Authentic items from Nike, Adidas, Zara, H&M
+- 🌍 **Multi-Language**: German, English, French, Spanish
+- 📱 **Responsive Design**: Optimized for mobile and desktop
+- 🛒 **Amazon Integration**: Direct purchase links with affiliate program
 
-## Run Locally
+## Quick Start
 
-**Prerequisites:**  Node.js
+```bash
+# Install dependencies
+npm install
 
+# Set up environment
+cp .env.example .env.local
+# Add your VITE_GEMINI_API_KEY
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+# Start development server
+npm run dev
+
+# Build for production
+npm run build
+```
+
+## Environment Variables
+
+```env
+VITE_GEMINI_API_KEY=your_gemini_api_key_here
+```
+
+## Tech Stack
+
+- **Frontend**: React 19 + TypeScript + Vite
+- **Styling**: Tailwind CSS
+- **AI**: Google Gemini API
+- **Build**: Vite with optimized chunks
+- **Deployment**: Ready for Vercel/Netlify
+
+## Deployment
+
+The app is production-ready and can be deployed to:
+
+### **Vercel** (Recommended)
+```bash
+# Install Vercel CLI
+npm i -g vercel
+
+# Deploy
+vercel --prod
+
+# Set environment variable
+vercel env add VITE_GEMINI_API_KEY
+```
+
+### **Netlify**
+```bash
+# Install Netlify CLI  
+npm i -g netlify-cli
+
+# Deploy
+netlify deploy --prod --dir=dist
+
+# Set environment variable in Netlify dashboard
+```
+
+### **Manual Deploy**
+Upload `dist/` folder to any static hosting service.
+
+## License
+
+Private - All rights reserved
+
+---
+
+Made with ❤️ by AntraX-AI Team

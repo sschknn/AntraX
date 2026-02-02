@@ -7,7 +7,7 @@ export enum Step {
   SETTINGS = 'SETTINGS'
 }
 
-export type Language = 'de' | 'en';
+export type Language = 'de' | 'en' | 'fr' | 'es' | 'it' | 'pt' | 'nl' | 'pl' | 'ru' | 'zh' | 'ja' | 'ko';
 export type PlanType = 'free' | 'pro';
 
 export interface UserAuth {
