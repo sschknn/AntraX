@@ -139,7 +139,7 @@ export const validateApiKey = async (customKey?: string): Promise<{ success: boo
     
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
-      model: 'gemini-1.5-pro',
+      model: 'gemini-pro',
       contents: 'hi',
     });
     if (response.text) {
@@ -168,7 +168,7 @@ export const analyzeLookAndGenerateSuggestions = async (imageBase64: string, lan
     }
 
     const response = await ai.models.generateContent({
-      model: 'gemini-1.5-pro',
+      model: 'gemini-pro-vision',
       contents: {
         parts: [
           { inlineData: { mimeType, data: base64Data } },
@@ -212,7 +212,7 @@ export const generateStyledImage = async (originalImageBase64: string, prompt: s
     const base64Data = originalImageBase64.includes(',') ? originalImageBase64.split(',')[1] : originalImageBase64;
     
     const response = await ai.models.generateContent({
-      model: 'gemini-1.5-pro',
+      model: 'gemini-pro-vision',
       contents: {
         parts: [
           { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
