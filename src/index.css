@@ -2,19 +2,29 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Custom Styles */
 body { 
   font-family: 'Inter', sans-serif; 
   overflow-x: hidden;
 }
 
-.animate-flash { animation: flash 0.5s ease-out; }
+.animate-flash { 
+  animation: flash 0.5s ease-out; 
+}
+
 @keyframes flash {
   0% { opacity: 1; }
   100% { opacity: 0; }
 }
 
-.no-scrollbar::-webkit-scrollbar { display: none; }
-.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { 
+  display: none; 
+}
+
+.no-scrollbar { 
+  -ms-overflow-style: none; 
+  scrollbar-width: none; 
+}
 
 .loading-spinner {
   border: 3px solid rgba(255, 255, 255, 0.1);
@@ -28,4 +38,19 @@ body {
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+/* Ensure base styles are applied */
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+#root {
+  min-height: 100vh;
 }
