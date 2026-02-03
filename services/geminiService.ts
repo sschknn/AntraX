@@ -67,7 +67,11 @@ class KeyManager {
   }
 
   getCurrentKey(): string {
-    // If index is -1, try process.env.API_KEY, else fallback to first custom key
+    // Verwende Vercel Environment Variable zuerst
+    const vercelKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+    if (vercelKey) return vercelKey;
+    
+    // Dann process.env.API_KEY
     if (this.currentKeyIndex === -1) {
       return process.env.API_KEY || (this.customKeys.length > 0 ? this.customKeys[0] : '');
     }
