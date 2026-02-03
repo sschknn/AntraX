@@ -170,33 +170,72 @@ export const analyzeLookAndGenerateSuggestions = async (imageBase64: string, lan
   suggestions: any[] 
 }> => {
   // Fallback-Daten wenn KI nicht verfügbar
+  const allTrends = [
+    {
+      id: 'street-chic',
+      title: 'Street Chic',
+      description: 'Urbaner Look mit modernen Akzenten',
+      productKeywords: ['streetwear', 'sneakers', 'denim', 'hoodie'],
+      imageUrl: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400'
+    },
+    {
+      id: 'minimalist',
+      title: 'Minimalist',
+      description: 'Klare Linien und neutrale Farben',
+      productKeywords: ['minimal', 'white', 'black', 'clean'],
+      imageUrl: 'https://images.unsplash.com/photo-1434389677669-e08b4cac3105?w=400'
+    },
+    {
+      id: 'casual-elegant',
+      title: 'Casual Elegant',
+      description: 'Entspannt aber stilvoll',
+      productKeywords: ['blazer', 'jeans', 'shirt', 'loafers'],
+      imageUrl: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400'
+    },
+    {
+      id: 'boho-chic',
+      title: 'Boho Chic',
+      description: 'Fließende Stoffe und natürliche Materialien',
+      productKeywords: ['boho', 'flowy', 'natural', 'earthy'],
+      imageUrl: 'https://images.unsplash.com/photo-1469334031218-e382a71b716b?w=400'
+    },
+    {
+      id: 'tech-wear',
+      title: 'Tech Wear',
+      description: 'Futuristisch und funktional',
+      productKeywords: ['tech', 'functional', 'black', 'modern'],
+      imageUrl: 'https://images.unsplash.com/photo-1551698618-1dfe5d97d256?w=400'
+    },
+    {
+      id: 'vintage-revival',
+      title: 'Vintage Revival',
+      description: 'Retro-Styles neu interpretiert',
+      productKeywords: ['vintage', 'retro', 'classic', 'timeless'],
+      imageUrl: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?w=400'
+    },
+    {
+      id: 'athleisure',
+      title: 'Athleisure',
+      description: 'Sportlich-elegante Kombination',
+      productKeywords: ['athletic', 'comfortable', 'sporty', 'casual'],
+      imageUrl: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400'
+    },
+    {
+      id: 'dark-academia',
+      title: 'Dark Academia',
+      description: 'Intellektuell und mysteriös',
+      productKeywords: ['academic', 'dark', 'sophisticated', 'classic'],
+      imageUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400'
+    }
+  ];
+
+  // Wähle 3 zufällige Trends aus
+  const shuffled = allTrends.sort(() => 0.5 - Math.random());
   const fallbackData = {
     gender: 'female' as const,
-    detectedAesthetic: 'Modern Casual',
+    detectedAesthetic: shuffled[0].title,
     analysisReasoning: 'Basierend auf aktuellen Trends',
-    suggestions: [
-      {
-        id: 'street-chic',
-        title: 'Street Chic',
-        description: 'Urbaner Look mit modernen Akzenten',
-        productKeywords: ['streetwear', 'sneakers', 'denim'],
-        imageUrl: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400'
-      },
-      {
-        id: 'minimalist',
-        title: 'Minimalist',
-        description: 'Klare Linien und neutrale Farben',
-        productKeywords: ['minimal', 'white', 'black'],
-        imageUrl: 'https://images.unsplash.com/photo-1434389677669-e08b4cac3105?w=400'
-      },
-      {
-        id: 'casual-elegant',
-        title: 'Casual Elegant',
-        description: 'Entspannt aber stilvoll',
-        productKeywords: ['blazer', 'jeans', 'shirt'],
-        imageUrl: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400'
-      }
-    ]
+    suggestions: shuffled.slice(0, 3)
   };
 
   try {
