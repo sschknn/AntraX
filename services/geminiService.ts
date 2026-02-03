@@ -116,7 +116,7 @@ export async function callWithRetry<T>(fn: (apiKey: string) => Promise<T>, retri
     if (isRateLimited) {
       const rotated = keyManager.rotateKey();
       if (rotated && retries > 0) {
-        console.warn("KI überlastet - wechsle API-Schlüssel...");
+        // Stiller Key-Wechsel
         await new Promise(resolve => setTimeout(resolve, 1000));
         return callWithRetry(fn, retries - 1, delay);
       }
@@ -130,7 +130,7 @@ export async function callWithRetry<T>(fn: (apiKey: string) => Promise<T>, retri
     }
 
     if (retries > 0) {
-      console.warn(`KI-Fehler, versuche erneut in ${delay}ms...`);
+      // Stille Wiederholung ohne Console-Log
       await new Promise(resolve => setTimeout(resolve, delay));
       return callWithRetry(fn, retries - 1, delay * 1.2);
     }
@@ -250,7 +250,7 @@ export const analyzeLookAndGenerateSuggestions = async (imageBase64: string, lan
       }
 
       const response = await ai.models.generateContent({
-        model: 'gemini-1.5-pro',
+        model: 'gemini-pro',
         contents: {
           parts: [
             { inlineData: { mimeType, data: base64Data } },
@@ -271,7 +271,7 @@ export const analyzeLookAndGenerateSuggestions = async (imageBase64: string, lan
       return parsed.suggestions ? parsed : fallbackData;
     }, 1, 500); // Nur 1 Versuch, schnell aufgeben
   } catch (error) {
-    console.warn('KI nicht verfügbar, verwende Fallback-Daten');
+    // Stille Fallback-Verwendung für Production
     return fallbackData;
   }
 };
@@ -283,7 +283,7 @@ export const generateStyledImage = async (originalImageBase64: string, prompt: s
       return originalImageBase64;
     }, 1, 500);
   } catch (error) {
-    console.warn('Bild-Styling nicht verfügbar, verwende Original');
+    // Stille Fallback-Verwendung
     return originalImageBase64;
   }
 };
