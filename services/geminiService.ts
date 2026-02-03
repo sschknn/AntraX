@@ -176,56 +176,56 @@ export const analyzeLookAndGenerateSuggestions = async (imageBase64: string, lan
       title: 'Street Chic',
       description: 'Urbaner Look mit modernen Akzenten',
       productKeywords: ['streetwear', 'sneakers', 'denim', 'hoodie'],
-      imageUrl: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400'
+      imageUrl: `https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=400&t=${Date.now()}`
     },
     {
       id: 'minimalist',
       title: 'Minimalist',
       description: 'Klare Linien und neutrale Farben',
       productKeywords: ['minimal', 'white', 'black', 'clean'],
-      imageUrl: 'https://images.unsplash.com/photo-1434389677669-e08b4cac3105?w=400'
+      imageUrl: `https://images.unsplash.com/photo-1434389677669-e08b4cac3105?w=400&t=${Date.now()}`
     },
     {
       id: 'casual-elegant',
       title: 'Casual Elegant',
       description: 'Entspannt aber stilvoll',
       productKeywords: ['blazer', 'jeans', 'shirt', 'loafers'],
-      imageUrl: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400'
+      imageUrl: `https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&t=${Date.now()}`
     },
     {
       id: 'boho-chic',
       title: 'Boho Chic',
       description: 'Fließende Stoffe und natürliche Materialien',
       productKeywords: ['boho', 'flowy', 'natural', 'earthy'],
-      imageUrl: 'https://images.unsplash.com/photo-1469334031218-e382a71b716b?w=400'
+      imageUrl: `https://images.unsplash.com/photo-1469334031218-e382a71b716b?w=400&t=${Date.now()}`
     },
     {
       id: 'tech-wear',
       title: 'Tech Wear',
       description: 'Futuristisch und funktional',
       productKeywords: ['tech', 'functional', 'black', 'modern'],
-      imageUrl: 'https://images.unsplash.com/photo-1551698618-1dfe5d97d256?w=400'
+      imageUrl: `https://images.unsplash.com/photo-1551698618-1dfe5d97d256?w=400&t=${Date.now()}`
     },
     {
       id: 'vintage-revival',
       title: 'Vintage Revival',
       description: 'Retro-Styles neu interpretiert',
       productKeywords: ['vintage', 'retro', 'classic', 'timeless'],
-      imageUrl: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?w=400'
+      imageUrl: `https://images.unsplash.com/photo-1509631179647-0177331693ae?w=400&t=${Date.now()}`
     },
     {
       id: 'athleisure',
       title: 'Athleisure',
       description: 'Sportlich-elegante Kombination',
       productKeywords: ['athletic', 'comfortable', 'sporty', 'casual'],
-      imageUrl: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400'
+      imageUrl: `https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&t=${Date.now()}`
     },
     {
       id: 'dark-academia',
       title: 'Dark Academia',
       description: 'Intellektuell und mysteriös',
       productKeywords: ['academic', 'dark', 'sophisticated', 'classic'],
-      imageUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400'
+      imageUrl: `https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&t=${Date.now()}`
     }
   ];
 
