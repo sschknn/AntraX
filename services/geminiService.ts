@@ -227,6 +227,9 @@ export const generateStyledImage = async (originalImageBase64: string, prompt: s
       return;
     }
     
+    // Sicherstellen dass prompt existiert
+    const safePrompt = prompt || 'styled';
+    
     img.onload = () => {
       try {
         // Canvas-Größe setzen
@@ -237,7 +240,7 @@ export const generateStyledImage = async (originalImageBase64: string, prompt: s
         ctx.drawImage(img, 0, 0);
         
         // Style-spezifische Filter
-        const lowerPrompt = prompt.toLowerCase();
+        const lowerPrompt = safePrompt.toLowerCase();
         if (lowerPrompt.includes('vintage') || lowerPrompt.includes('retro')) {
           // Vintage-Effekt
           ctx.globalCompositeOperation = 'multiply';
@@ -274,7 +277,7 @@ export const generateStyledImage = async (originalImageBase64: string, prompt: s
         ctx.shadowColor = 'black';
         ctx.shadowBlur = 4;
         
-        const styleText = prompt.toUpperCase();
+        const styleText = safePrompt.toUpperCase();
         ctx.fillText(styleText, canvas.width / 2, canvas.height - 40);
         
         ctx.font = '16px Arial';
