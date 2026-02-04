@@ -216,98 +216,90 @@ export const analyzeLookAndGenerateSuggestions = async (imageBase64: string, lan
 };
 
 export const generateStyledImage = async (originalImageBase64: string, prompt: string): Promise<string> => {
-  try {
-    // Verwende KI für Style-Beschreibung
-    const ai = new GoogleGenAI({ apiKey: keyManager.getCurrentKey() });
-    const base64Data = originalImageBase64.includes(',') ? originalImageBase64.split(',')[1] : originalImageBase64;
-    
-    const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash-latest',
-      contents: {
-        parts: [
-          { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
-          { text: `Create a ${prompt} styling transformation description. Be specific about colors, textures, and fashion elements.` }
-        ]
-      }
-    });
-
-    const description = response.text || `${prompt} styling applied`;
-    
-    // Erstelle gestyltes Bild mit Overlay
-    return await createStyledImageWithOverlay(originalImageBase64, description, prompt);
-  } catch (error) {
-    // Fallback ohne KI
-    return await createStyledImageWithOverlay(originalImageBase64, `${prompt} styling transformation`, prompt);
-  }
-};
-
-function createStyledImageWithOverlay(originalImage: string, description: string, style: string): Promise<string> {
   return new Promise((resolve) => {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
+    const img = new Image();
+    
+    // Sofortiger Fallback wenn Canvas nicht funktioniert
     if (!ctx) {
-      resolve(originalImage);
+      resolve(originalImageBase64);
       return;
     }
     
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    
     img.onload = () => {
       try {
+        // Canvas-Größe setzen
         canvas.width = img.width;
         canvas.height = img.height;
         
-        // Zeichne Original-Bild
+        // Original-Bild zeichnen
         ctx.drawImage(img, 0, 0);
         
-        // Style-Filter anwenden
-        if (style.toLowerCase().includes('vintage')) {
-          ctx.filter = 'sepia(0.8) contrast(1.2) brightness(0.9)';
-        } else if (style.toLowerCase().includes('modern')) {
-          ctx.filter = 'contrast(1.3) saturate(1.2)';
-        } else if (style.toLowerCase().includes('dark')) {
-          ctx.filter = 'brightness(0.7) contrast(1.4)';
-        } else {
-          ctx.filter = 'contrast(1.1) saturate(1.1)';
+        // Style-spezifische Filter
+        const lowerPrompt = prompt.toLowerCase();
+        if (lowerPrompt.includes('vintage') || lowerPrompt.includes('retro')) {
+          // Vintage-Effekt
+          ctx.globalCompositeOperation = 'multiply';
+          ctx.fillStyle = 'rgba(255, 204, 153, 0.3)';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.globalCompositeOperation = 'source-over';
+        } else if (lowerPrompt.includes('dark') || lowerPrompt.includes('gothic')) {
+          // Dark-Effekt
+          ctx.globalCompositeOperation = 'multiply';
+          ctx.fillStyle = 'rgba(100, 100, 150, 0.4)';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.globalCompositeOperation = 'source-over';
+        } else if (lowerPrompt.includes('bright') || lowerPrompt.includes('summer')) {
+          // Bright-Effekt
+          ctx.globalCompositeOperation = 'screen';
+          ctx.fillStyle = 'rgba(255, 255, 200, 0.2)';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.globalCompositeOperation = 'source-over';
         }
         
-        ctx.drawImage(img, 0, 0);
-        ctx.filter = 'none';
-        
-        // Füge Style-Overlay hinzu
-        const gradient = ctx.createLinearGradient(0, canvas.height - 100, 0, canvas.height);
+        // Style-Label hinzufügen
+        const labelHeight = 80;
+        const gradient = ctx.createLinearGradient(0, canvas.height - labelHeight, 0, canvas.height);
         gradient.addColorStop(0, 'rgba(0,0,0,0)');
         gradient.addColorStop(1, 'rgba(0,0,0,0.8)');
         
         ctx.fillStyle = gradient;
-        ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
+        ctx.fillRect(0, canvas.height - labelHeight, canvas.width, labelHeight);
         
-        // Style-Text
+        // Text hinzufügen
         ctx.fillStyle = 'white';
-        ctx.font = 'bold 20px Arial, sans-serif';
+        ctx.font = 'bold 24px Arial';
         ctx.textAlign = 'center';
-        ctx.shadowColor = 'rgba(0,0,0,0.5)';
+        ctx.shadowColor = 'black';
         ctx.shadowBlur = 4;
         
-        const styleText = (style || 'Styled').toUpperCase();
-        ctx.fillText(styleText, canvas.width / 2, canvas.height - 60);
+        const styleText = prompt.toUpperCase();
+        ctx.fillText(styleText, canvas.width / 2, canvas.height - 40);
         
-        ctx.font = '14px Arial, sans-serif';
-        const descText = (description || 'AI Styled Image').substring(0, 80) + '...';
-        ctx.fillText(descText, canvas.width / 2, canvas.height - 30);
+        ctx.font = '16px Arial';
+        ctx.fillText('AI STYLED', canvas.width / 2, canvas.height - 15);
         
-        resolve(canvas.toDataURL('image/jpeg', 0.9));
+        // Bild als Base64 zurückgeben
+        const result = canvas.toDataURL('image/jpeg', 0.9);
+        resolve(result);
+        
       } catch (error) {
-        console.error('Canvas error:', error);
-        resolve(originalImage);
+        console.error('Canvas styling error:', error);
+        resolve(originalImageBase64);
       }
     };
     
-    img.onerror = () => resolve(originalImage);
-    img.src = originalImage;
+    img.onerror = () => {
+      console.error('Image load error');
+      resolve(originalImageBase64);
+    };
+    
+    // Bild laden
+    img.crossOrigin = 'anonymous';
+    img.src = originalImageBase64;
   });
-}
+};
 
 export const findMatchingProductsForKeywords = async (keywords: string[], outfitLabel: string): Promise<Product[]> => {
   return keywords.map(kw => {
