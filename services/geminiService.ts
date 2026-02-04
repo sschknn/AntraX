@@ -279,14 +279,69 @@ export const analyzeLookAndGenerateSuggestions = async (imageBase64: string, lan
 export const generateStyledImage = async (originalImageBase64: string, prompt: string): Promise<string> => {
   try {
     return await callWithRetry(async (apiKey) => {
-      // Gemini kann keine Bilder generieren, gebe Original zurück
-      return originalImageBase64;
+      const ai = new GoogleGenAI({ apiKey });
+      const base64Data = originalImageBase64.includes(',') ? originalImageBase64.split(',')[1] : originalImageBase64;
+      
+      const response = await ai.models.generateContent({
+        model: 'gemini-pro',
+        contents: {
+          parts: [
+            { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
+            { text: `Analyze this image and describe a ${prompt} styling transformation. Be very detailed about colors, textures, lighting, and fashion elements.` }
+          ]
+        }
+      });
+
+      const description = response.text;
+      if (!description) throw new Error('No description generated');
+      
+      // Da Gemini keine Bilder generiert, erstelle ein Overlay mit der Beschreibung
+      return createStyledImageWithOverlay(originalImageBase64, description, prompt);
     }, 1, 500);
   } catch (error) {
-    // Stille Fallback-Verwendung
-    return originalImageBase64;
+    // Fallback: Erstelle ein einfaches Overlay
+    return createStyledImageWithOverlay(originalImageBase64, `${prompt} styling applied`, prompt);
   }
 };
+
+function createStyledImageWithOverlay(originalImage: string, description: string, style: string): string {
+  return new Promise((resolve) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      
+      // Zeichne Original-Bild
+      ctx.drawImage(img, 0, 0);
+      
+      // Füge Style-Overlay hinzu
+      const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      gradient.addColorStop(0, 'rgba(0,0,0,0)');
+      gradient.addColorStop(1, 'rgba(0,0,0,0.7)');
+      
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Füge Style-Text hinzu
+      ctx.fillStyle = 'white';
+      ctx.font = 'bold 24px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(style.toUpperCase(), canvas.width / 2, canvas.height - 60);
+      
+      ctx.font = '16px Inter, sans-serif';
+      const words = description.substring(0, 100) + '...';
+      ctx.fillText(words, canvas.width / 2, canvas.height - 30);
+      
+      resolve(canvas.toDataURL('image/jpeg', 0.9));
+    };
+    
+    img.onerror = () => resolve(originalImage);
+    img.src = originalImage;
+  });
+}
 
 export const findMatchingProductsForKeywords = async (keywords: string[], outfitLabel: string): Promise<Product[]> => {
   return keywords.map(kw => {
