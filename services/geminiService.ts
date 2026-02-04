@@ -217,29 +217,27 @@ export const analyzeLookAndGenerateSuggestions = async (imageBase64: string, lan
 
 export const generateStyledImage = async (originalImageBase64: string, prompt: string): Promise<string> => {
   try {
-    return await callWithRetry(async (apiKey) => {
-      const ai = new GoogleGenAI({ apiKey });
-      const base64Data = originalImageBase64.includes(',') ? originalImageBase64.split(',')[1] : originalImageBase64;
-      
-      const response = await ai.models.generateContent({
-        model: 'gemini-1.5-flash-latest',
-        contents: {
-          parts: [
-            { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
-            { text: `Analyze this image and describe a ${prompt} styling transformation. Be very detailed about colors, textures, lighting, and fashion elements.` }
-          ]
-        }
-      });
+    // Verwende KI für Style-Beschreibung
+    const ai = new GoogleGenAI({ apiKey: keyManager.getCurrentKey() });
+    const base64Data = originalImageBase64.includes(',') ? originalImageBase64.split(',')[1] : originalImageBase64;
+    
+    const response = await ai.models.generateContent({
+      model: 'gemini-1.5-flash-latest',
+      contents: {
+        parts: [
+          { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
+          { text: `Create a ${prompt} styling transformation description. Be specific about colors, textures, and fashion elements.` }
+        ]
+      }
+    });
 
-      const description = response.text;
-      if (!description) throw new Error('No description generated');
-      
-      // Da Gemini keine Bilder generiert, erstelle ein Overlay mit der Beschreibung
-      return createStyledImageWithOverlay(originalImageBase64, description, prompt);
-    }, 1, 500);
+    const description = response.text || `${prompt} styling applied`;
+    
+    // Erstelle gestyltes Bild mit Overlay
+    return await createStyledImageWithOverlay(originalImageBase64, description, prompt);
   } catch (error) {
-    // Fallback: Erstelle ein einfaches Overlay
-    return createStyledImageWithOverlay(originalImageBase64, `${prompt} styling applied`, prompt);
+    // Fallback ohne KI
+    return await createStyledImageWithOverlay(originalImageBase64, `${prompt} styling transformation`, prompt);
   }
 };
 
@@ -247,35 +245,63 @@ function createStyledImageWithOverlay(originalImage: string, description: string
   return new Promise((resolve) => {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      resolve(originalImage);
+      return;
+    }
+    
     const img = new Image();
+    img.crossOrigin = 'anonymous';
     
     img.onload = () => {
-      canvas.width = img.width;
-      canvas.height = img.height;
-      
-      // Zeichne Original-Bild
-      ctx.drawImage(img, 0, 0);
-      
-      // Füge Style-Overlay hinzu
-      const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-      gradient.addColorStop(0, 'rgba(0,0,0,0)');
-      gradient.addColorStop(1, 'rgba(0,0,0,0.7)');
-      
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
-      // Füge Style-Text hinzu (mit Null-Check)
-      ctx.fillStyle = 'white';
-      ctx.font = 'bold 24px Inter, sans-serif';
-      ctx.textAlign = 'center';
-      const styleText = (style || 'Style').toUpperCase();
-      ctx.fillText(styleText, canvas.width / 2, canvas.height - 60);
-      
-      ctx.font = '16px Inter, sans-serif';
-      const words = (description || 'Styled image').substring(0, 100) + '...';
-      ctx.fillText(words, canvas.width / 2, canvas.height - 30);
-      
-      resolve(canvas.toDataURL('image/jpeg', 0.9));
+      try {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        
+        // Zeichne Original-Bild
+        ctx.drawImage(img, 0, 0);
+        
+        // Style-Filter anwenden
+        if (style.toLowerCase().includes('vintage')) {
+          ctx.filter = 'sepia(0.8) contrast(1.2) brightness(0.9)';
+        } else if (style.toLowerCase().includes('modern')) {
+          ctx.filter = 'contrast(1.3) saturate(1.2)';
+        } else if (style.toLowerCase().includes('dark')) {
+          ctx.filter = 'brightness(0.7) contrast(1.4)';
+        } else {
+          ctx.filter = 'contrast(1.1) saturate(1.1)';
+        }
+        
+        ctx.drawImage(img, 0, 0);
+        ctx.filter = 'none';
+        
+        // Füge Style-Overlay hinzu
+        const gradient = ctx.createLinearGradient(0, canvas.height - 100, 0, canvas.height);
+        gradient.addColorStop(0, 'rgba(0,0,0,0)');
+        gradient.addColorStop(1, 'rgba(0,0,0,0.8)');
+        
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
+        
+        // Style-Text
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 20px Arial, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.shadowColor = 'rgba(0,0,0,0.5)';
+        ctx.shadowBlur = 4;
+        
+        const styleText = (style || 'Styled').toUpperCase();
+        ctx.fillText(styleText, canvas.width / 2, canvas.height - 60);
+        
+        ctx.font = '14px Arial, sans-serif';
+        const descText = (description || 'AI Styled Image').substring(0, 80) + '...';
+        ctx.fillText(descText, canvas.width / 2, canvas.height - 30);
+        
+        resolve(canvas.toDataURL('image/jpeg', 0.9));
+      } catch (error) {
+        console.error('Canvas error:', error);
+        resolve(originalImage);
+      }
     };
     
     img.onerror = () => resolve(originalImage);
