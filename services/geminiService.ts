@@ -151,7 +151,7 @@ export const validateApiKey = async (customKey?: string): Promise<{ success: boo
     
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
-      model: 'gemini-pro',
+      model: 'gemini-1.5-flash',
       contents: 'hi',
     });
     if (response.text) {
@@ -250,7 +250,7 @@ export const analyzeLookAndGenerateSuggestions = async (imageBase64: string, lan
       }
 
       const response = await ai.models.generateContent({
-        model: 'gemini-pro',
+        model: 'gemini-1.5-flash',
         contents: {
           parts: [
             { inlineData: { mimeType, data: base64Data } },
@@ -283,7 +283,7 @@ export const generateStyledImage = async (originalImageBase64: string, prompt: s
       const base64Data = originalImageBase64.includes(',') ? originalImageBase64.split(',')[1] : originalImageBase64;
       
       const response = await ai.models.generateContent({
-        model: 'gemini-pro',
+        model: 'gemini-1.5-flash',
         contents: {
           parts: [
             { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
@@ -304,7 +304,7 @@ export const generateStyledImage = async (originalImageBase64: string, prompt: s
   }
 };
 
-function createStyledImageWithOverlay(originalImage: string, description: string, style: string): string {
+function createStyledImageWithOverlay(originalImage: string, description: string, style: string): Promise<string> {
   return new Promise((resolve) => {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -325,14 +325,15 @@ function createStyledImageWithOverlay(originalImage: string, description: string
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
-      // Füge Style-Text hinzu
+      // Füge Style-Text hinzu (mit Null-Check)
       ctx.fillStyle = 'white';
       ctx.font = 'bold 24px Inter, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(style.toUpperCase(), canvas.width / 2, canvas.height - 60);
+      const styleText = (style || 'Style').toUpperCase();
+      ctx.fillText(styleText, canvas.width / 2, canvas.height - 60);
       
       ctx.font = '16px Inter, sans-serif';
-      const words = description.substring(0, 100) + '...';
+      const words = (description || 'Styled image').substring(0, 100) + '...';
       ctx.fillText(words, canvas.width / 2, canvas.height - 30);
       
       resolve(canvas.toDataURL('image/jpeg', 0.9));
